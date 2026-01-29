@@ -287,6 +287,26 @@ app.get("/api/results", requireAuth, async (req, res) => {
   const [rows] = await pool.query(sql, params);
   res.json({ rows });
 });
+app.get("/api/dashboard/constituencies", requireAuth, async (req, res) => {
+  try {
+    const year = Number(req.query.year);
+    if (!Number.isFinite(year)) {
+      res.status(400).json({ message: "year is required (number)." });
+      return;
+    }
+
+    const [rows] = await pool.query(
+      "SELECT DISTINCT constituency FROM ge_summary WHERE year = ? ORDER BY constituency ASC",
+      [year]
+    );
+
+    res.json({
+      constituencies: rows.map((r) => String(r.constituency)),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Failed to load constituencies." });
+  }
+});
 
 app.get("/api/auth/probe", requireAuth, (req, res) => {
   res.json({
