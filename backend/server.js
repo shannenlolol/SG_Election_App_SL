@@ -14,6 +14,8 @@ const {
   fetchGeoJsonFromSignedUrl,
 } = require("./services/dataGov");
 
+const dashboardRoutes = require("./routes/dashboard.routes");
+
 const app = express();
 const pool = buildPool();
 app.use(cookieParser());
@@ -58,6 +60,7 @@ app.use(
 
 
 app.use(express.json());
+app.use("/api/dashboard", requireAuth, dashboardRoutes);
 
 
 app.use(function (req, res, next) {
