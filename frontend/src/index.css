@@ -1,6 +1,6 @@
 :root {
   --bg: #f6f7fb;
-  --card: #ffffff;
+  --card: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
   --text: #0f172a;
   --muted: #64748b;
   --border: #e2e8f0;
@@ -104,7 +104,7 @@ a:hover {
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: #000000;
   outline: none;
   font-size: 14px;
   font-family: var(--font);
@@ -171,7 +171,7 @@ a:hover {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(246, 247, 251, 0.75);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.205), rgba(255, 255, 255, 0.119));
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -229,7 +229,7 @@ a:hover {
 }
 
 .topbar-link:hover {
-  background: #ffffff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
   border-color: var(--border);
   text-decoration: none;
 }
@@ -250,7 +250,7 @@ a:hover {
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: #ffffff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
   color: var(--text);
   font-weight: 700;
   cursor: pointer;
@@ -260,4 +260,22 @@ a:hover {
 .topbar-btn:hover {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px var(--ring);
+}
+
+.topbar-nav {
+  position: relative;
+}
+
+/* Active tab */
+.topbar-link.is-active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
+  border-color: var(--border);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+}
+
+
+/* Optional: make hover not override active */
+.topbar-link.is-active:hover {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
+  border-color: var(--border);
 }

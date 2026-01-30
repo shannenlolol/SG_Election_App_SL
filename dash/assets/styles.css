@@ -1,6 +1,6 @@
 :root {
-  --bg: #f6f7fb;
-  --card: #ffffff;
+  --bg: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
+  --card: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
   --text: #0f172a;
   --muted: #64748b;
   --border: #e5e7eb;

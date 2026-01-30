@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { apiPost } from "../api.js";
 
@@ -31,8 +31,12 @@ export default function NavBar() {
     );
   }
 
-  if (!user) {
-    return null;
+  if (!user) return null;
+
+  function navClass({ isActive }) {
+    let className = "topbar-link";
+    if (isActive) className += " is-active";
+    return className;
   }
 
   return (
@@ -45,15 +49,12 @@ export default function NavBar() {
           </div>
 
           <nav className="topbar-nav">
-            <Link className="topbar-link" to="/map">Map</Link>
-            <Link className="topbar-link" to="/dashboard">Dashboard</Link>
+            <NavLink to="/map" end className={navClass}>Map</NavLink>
+            <NavLink to="/dashboard" end className={navClass}>Dashboard</NavLink>
           </nav>
         </div>
 
         <div className="topbar-right">
-          <div className="topbar-meta">
-            {user.username} ({user.role_name})
-          </div>
           <button className="topbar-btn" type="button" onClick={onLogout}>
             Logout
           </button>

@@ -128,10 +128,10 @@ app.layout = html.Div(
                             clearable=True,
                             className="control",
                         ),
-                        html.Div(
-                            "Start typing to filter, or leave empty to search all.",
-                            className="hint",
-                        ),
+                        # html.Div(
+                        #     "Start typing to filter, or leave empty to search all.",
+                        #     className="hint",
+                        # ),
                     ],
                     className="field span-2",
                 ),
