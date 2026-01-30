@@ -9,9 +9,7 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       {!hideNav ? <NavBar /> : null}
-      <div className="app-content">
         {children}
-      </div>
     </div>
   );
 }

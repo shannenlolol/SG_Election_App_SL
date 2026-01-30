@@ -27,7 +27,8 @@ export default function App() {
             path="/dashboard"
             element={
               <RequireAuth>
-                <DashboardPage />
+                      <div className="app-content"><DashboardPage /></div>
+                
               </RequireAuth>
             }
           />

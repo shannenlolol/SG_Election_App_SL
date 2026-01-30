@@ -279,3 +279,207 @@ a:hover {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
   border-color: var(--border);
 }
+.leaflet-container:focus {
+  outline: none;
+}
+
+.leaflet-interactive:focus {
+  outline: none;
+}
+/* --- Map layout with collapsible sidebar --- */
+.map-shell {
+  width: 100vw;
+  display: flex;
+  overflow: hidden;
+}
+
+.map-sidebar {
+  flex: 0 0 auto;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.205), rgba(255, 255, 255, 0.119));
+  backdrop-filter: blur(10px);
+
+  transition: width 260ms ease;
+}
+
+
+.map-sidebar-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.map-sidebar-title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.sidebar-toggle {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.sidebar-toggle:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.map-sidebar-body {
+  flex: 1 1 auto;
+  padding: 12px;
+  overflow: auto;
+}
+
+.map-sidebar-status {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.map-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+/* make sure leaflet fills the map pane */
+.map-pane .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+.map-sidebar {
+  position: relative; /* IMPORTANT: anchor for the edge button */
+}
+
+/* Floating handle on the sidebar edge */
+.sidebar-edge-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translate(50%, -50%);
+
+  width: 36px;
+  height: 56px;
+  border-radius: 999px;
+
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.119));
+  color: var(--text);
+
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 50; /* ensure it sits above the map */
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+}
+
+.sidebar-edge-toggle:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--ring), 0 12px 26px rgba(15, 23, 42, 0.12);
+}
+/* Make shell a positioning context for the edge button */
+.map-shell {
+  width: 100vw;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Sidebar width controlled by state */
+.map-shell.sidebar-open {
+  --sidebar-w: 320px;
+}
+
+.map-shell.sidebar-collapsed {
+  --sidebar-w: 0px;
+}
+
+/* Sidebar */
+.map-sidebar {
+  flex: 0 0 auto;
+  width: var(--sidebar-w);
+  transition: width 260ms ease;
+  overflow: hidden;
+
+  border-right: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.205), rgba(255, 255, 255, 0.119));
+  backdrop-filter: blur(10px);
+}
+
+/* When collapsed: remove divider line too */
+.map-sidebar.collapsed {
+  border-right: none;
+}
+
+/* Hide content when collapsed (prevents “peek” during transition) */
+.map-sidebar.collapsed .map-sidebar-top,
+.map-sidebar.collapsed .map-sidebar-body {
+  display: none;
+}
+
+/* Map area */
+.map-pane {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.map-pane .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+/* Floating edge button: sits on the sidebar edge (0px when collapsed, 320px when open) */
+.sidebar-edge-toggle {
+  position: absolute;
+  top: 50%;
+  left: calc(var(--sidebar-w) + 6px);
+  transform: translate(-50%, -50%);
+
+  width: 24px;
+  height: 56px;
+  border-radius: 999px;
+
+  border: 1px solid var(--border);
+  background: rgba(33, 33, 33);
+  color: var(--text);
+
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 1000;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+
+  transition: left 260ms ease;
+}
+
+.sidebar-edge-toggle:hover {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--ring), 0 12px 26px rgba(15, 23, 42, 0.12);
+}
