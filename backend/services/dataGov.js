@@ -1,6 +1,7 @@
 const fetch = require("node-fetch");
 
 const DATA_GOV_POLL = "https://api-open.data.gov.sg/v1/public/api/datasets";
+const API_KEY = process.env.DGS_API_KEY || "";
 
 async function pollDownloadUrl(datasetId) {
   const url = `${DATA_GOV_POLL}/${datasetId}/poll-download`;
@@ -8,8 +9,9 @@ async function pollDownloadUrl(datasetId) {
   const res = await fetch(url, {
     method: "GET",
     headers: {
-      "Accept": "application/json"
-    }
+      Accept: "application/json",
+      ...(API_KEY ? { "x-api-key": API_KEY } : {}),
+    },
   });
 
   if (!res.ok) {
@@ -29,7 +31,7 @@ async function pollDownloadUrl(datasetId) {
 
 async function fetchGeoJsonFromSignedUrl(signedUrl) {
   const res = await fetch(signedUrl, {
-    method: "GET"
+    method: "GET",
   });
 
   if (!res.ok) {
@@ -42,5 +44,5 @@ async function fetchGeoJsonFromSignedUrl(signedUrl) {
 
 module.exports = {
   pollDownloadUrl,
-  fetchGeoJsonFromSignedUrl
+  fetchGeoJsonFromSignedUrl,
 };

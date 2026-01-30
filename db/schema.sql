@@ -101,3 +101,11 @@ CREATE TABLE IF NOT EXISTS ge_top_parties (
   rank_no INT NOT NULL,
   PRIMARY KEY (year, constituency, rank_no)
 );
+
+CREATE TABLE IF NOT EXISTS electoral_boundaries_geojson (
+  year INT PRIMARY KEY,
+  geojson JSON NOT NULL,
+  source_dataset_id VARCHAR(64) NOT NULL,
+  synced_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);

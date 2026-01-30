@@ -182,6 +182,42 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
   res.json({ user: req.user });
 });
 
+app.get("/api/proxy", async function (req, res) {
+  try {
+    const url = String(req.query.url || "");
+    if (!url) {
+      res.status(400).json({ message: "url is required" });
+      return;
+    }
+
+    // basic safety: only allow the expected host
+const allowedPrefixes = [
+  "https://s3.ap-southeast-1.amazonaws.com/blobs.data.gov.sg/",
+  "https://s3.",
+  "https://s3.ap-southeast-1.amazonaws.com/table-downloads-ingest.data.gov.sg/",
+];
+
+const ok = allowedPrefixes.some((p) => url.startsWith(p));
+if (!ok) {
+  res.status(400).json({ message: "invalid proxy target" });
+  return;
+}
+
+    const upstream = await fetch(url);
+    if (!upstream.ok) {
+      const text = await upstream.text();
+      res.status(502).send(text);
+      return;
+    }
+
+    res.setHeader("Content-Type", "application/geo+json");
+    const body = await upstream.text();
+    res.send(body);
+  } catch (err) {
+    res.status(500).json({ message: String(err && err.message ? err.message : err) });
+  }
+});
+
 app.get("/api/boundaries", requireAuth, async (req, res) => {
   try {
     const year = Number(req.query.year);
