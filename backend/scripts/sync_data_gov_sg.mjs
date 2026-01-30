@@ -1,32 +1,61 @@
 import "dotenv/config";
 import mysql from "mysql2/promise";
+
 // 1. List of Political Parties
-// abbreviation,  political_party 
-// WP,	Workers' Party
-// political_parties
+// abbreviation, political_party
 const DATASET_PARTIES = "d_ef163fd9ebc3c2f21032c29da3bd3f77";
 
-// 2. Parliamentary General Election - Registered Electors, Rejected Votes and Spoilt Ballots
+// 2. Registered Electors, Rejected Votes and Spoilt Ballots
 // year, constituency, no_of_registered_electors, no_of_rejected_votes, no_of_spoilt_ballot_papers
-// 2025	Tanjong Pagar	140194	3681	95
-// 2025	West Coast-Jurong West	158836	1438	53
-// ge_elector_stats
 const DATASET_ELECTORS = "d_fdfb854fcb7428b29734d2e0c0674220";
 
-// 3. Parliamentary General Election Dates
+// 3. Election Dates
 // year, nomination_day, polling_day
-// 2020	2020-06-30	2020-07-10
-// 2025	2025-04-23	2025-05-03
-// ge_dates
 const DATASET_DATES = "d_00d89e5d100a612e36432d91493785bd";
 
-// 4. Parliamentary General Election Results by Candidate
+// 4. Results by Candidate
 // year, constituency, constituency_type, candidates, party, vote_count, vote_percentage
-// 2025,	Yio Chu Kang,	SMC,	Michael Fang Amin,	PAR,	4876,	0.212500
-// 2025,	Yio Chu Kang,	SMC,	Yip Hon Weng,	PAP,	18066,	0.787500
-// ge_candidate_results
 const DATASET_RESULTS = "d_581a30bee57fa7d8383d6bc94739ad00";
 
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchJsonWithRetry(url, options) {
+  const maxAttempts = 6;
+  let attempt = 0;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+
+    const res = await fetch(url, options);
+
+    if (res.ok) {
+      return await res.json();
+    }
+
+    if (res.status === 429) {
+      const retryAfter = res.headers.get("retry-after");
+      let waitMs = 800 * Math.pow(2, attempt - 1);
+
+      if (retryAfter) {
+        const asNumber = Number(retryAfter);
+        if (Number.isFinite(asNumber) && asNumber > 0) {
+          waitMs = asNumber * 1000;
+        }
+      }
+
+      await sleep(waitMs);
+      continue;
+    }
+
+    throw new Error(`HTTP ${res.status} for ${url}`);
+  }
+
+  throw new Error(`HTTP 429 persisted after retries for ${url}`);
+}
 
 async function fetchAllRows(datasetId) {
   const base = "https://data.gov.sg/api/action/datastore_search";
@@ -40,17 +69,20 @@ async function fetchAllRows(datasetId) {
     url.searchParams.set("limit", String(limit));
     url.searchParams.set("offset", String(offset));
 
-    const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`HTTP ${res.status} for ${datasetId}`);
-    const json = await res.json();
+    const json = await fetchJsonWithRetry(url.toString(), { method: "GET" });
 
-    const records = json?.result?.records || [];
+    const records =
+      json && json.result && Array.isArray(json.result.records)
+        ? json.result.records
+        : [];
     all = all.concat(records);
 
-    const total = Number(json?.result?.total || 0);
+    const total = Number(json && json.result ? json.result.total : 0);
     offset += records.length;
 
-    if (records.length === 0 || offset >= total) break;
+    if (records.length === 0 || offset >= total) {
+      break;
+    }
   }
 
   return all;
@@ -59,20 +91,87 @@ async function fetchAllRows(datasetId) {
 function toInt(v) {
   if (v === null || v === undefined) return null;
   const n = Number(String(v).trim());
-  return Number.isFinite(n) ? Math.trunc(n) : null;
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
 }
 
 function toFloat(v) {
   if (v === null || v === undefined) return null;
   const n = Number(String(v).trim());
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  return n;
 }
 
-function pick(row, keys) {
-  for (const k of keys) {
-    if (row[k] !== undefined) return row[k];
+function toDate(v) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  return s.slice(0, 10);
+}
+
+async function getTableColumns(db, tableName) {
+  const sql = `
+    SELECT COLUMN_NAME
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ?
+  `;
+  const [rows] = await db.execute(sql, [tableName]);
+
+  const set = new Set();
+  for (const r of rows) {
+    if (r && r.COLUMN_NAME) {
+      set.add(String(r.COLUMN_NAME));
+    }
   }
-  return undefined;
+  return set;
+}
+
+function chooseElectorColumnMap(columns) {
+  // Prefer the API-aligned names if your table has them.
+  // Otherwise fall back to the older names your current script used.
+  const map = {
+    registered: null,
+    rejected: null,
+    spoilt: null,
+  };
+
+  if (columns.has("no_of_registered_electors")) {
+    map.registered = "no_of_registered_electors";
+  } else if (columns.has("registered_electors")) {
+    map.registered = "registered_electors";
+  }
+
+  if (columns.has("no_of_rejected_votes")) {
+    map.rejected = "no_of_rejected_votes";
+  } else if (columns.has("rejected_votes")) {
+    map.rejected = "rejected_votes";
+  }
+
+  if (columns.has("no_of_spoilt_ballot_papers")) {
+    map.spoilt = "no_of_spoilt_ballot_papers";
+  } else if (columns.has("spoilt_ballots")) {
+    map.spoilt = "spoilt_ballots";
+  }
+
+  return map;
+}
+
+function choosePartiesColumnMap(columns) {
+  const map = { abbr: null, name: null };
+
+  if (columns.has("abbreviation")) {
+    map.abbr = "abbreviation";
+  } else if (columns.has("party")) {
+    map.abbr = "party";
+  }
+
+  if (columns.has("political_party")) {
+    map.name = "political_party";
+  } else if (columns.has("party_name")) {
+    map.name = "party_name";
+  }
+
+  return map;
 }
 
 async function main() {
@@ -84,63 +183,108 @@ async function main() {
     database: process.env.DB_NAME || "election_db",
   });
 
-  // 1) Results by candidate
+  // ---- Introspect current table schemas (so we insert into the correct columns) ----
+  const electorCols = await getTableColumns(db, "ge_elector_stats");
+  const partiesCols = await getTableColumns(db, "political_parties");
+
+  const electorMap = chooseElectorColumnMap(electorCols);
+  const partiesMap = choosePartiesColumnMap(partiesCols);
+
+  if (!electorMap.registered || !electorMap.rejected || !electorMap.spoilt) {
+    console.log(
+      "Warning: Could not fully resolve ge_elector_stats column mapping:",
+      electorMap,
+    );
+  }
+
+  if (!partiesMap.abbr || !partiesMap.name) {
+    console.log(
+      "Warning: Could not fully resolve political_parties column mapping:",
+      partiesMap,
+    );
+  }
+
+  // 1) Results by candidate (API headers are snake_case as per your comment)
   console.log("Fetching results by candidate...");
   const results = await fetchAllRows(DATASET_RESULTS);
 
   console.log("Upserting ge_candidate_results...");
-const insertResultsSql = `
-  INSERT INTO ge_candidate_results
-    (year, constituency, constituency_type, candidates, party, vote_count, vote_percentage)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-  ON DUPLICATE KEY UPDATE
-    constituency_type = VALUES(constituency_type),
-    candidates = VALUES(candidates),
-    vote_count = VALUES(vote_count),
-    vote_percentage = VALUES(vote_percentage)
-`;
-  for (const r of results) {
-    const year = toInt(pick(r, ["Year", "year"]));
-    const constituency = String(pick(r, ["Constituency", "constituency"]) || "").trim();
-    const ctype = String(pick(r, ["Constituency Type", "constituency_type"]) || "").trim() || null;
-    const candidates = String(pick(r, ["Candidates", "candidates"]) || "").trim() || null;
-    const party = String(pick(r, ["Party", "party"]) || "").trim();
-    const voteCount = toInt(pick(r, ["Vote Count", "vote_count"]));
-    const votePct = toFloat(pick(r, ["Vote Percentage", "vote_percentage"]));
+  const insertResultsSql = `
+    INSERT INTO ge_candidate_results
+      (year, constituency, constituency_type, candidates, party, vote_count, vote_percentage)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      constituency_type = VALUES(constituency_type),
+      candidates = VALUES(candidates),
+      vote_count = VALUES(vote_count),
+      vote_percentage = VALUES(vote_percentage)
+  `;
 
-    if (!year || !constituency || !party) continue;
-    await db.execute(insertResultsSql, [year, constituency, ctype, candidates, party, voteCount, votePct]);
+  for (const r of results) {
+    const year = toInt(r.year);
+    const constituency = String(r.constituency || "").trim();
+    const ctype = String(r.constituency_type || "").trim() || null;
+    const candidates = String(r.candidates || "").trim() || null;
+    const party = String(r.party || "").trim();
+    const voteCount = toInt(r.vote_count);
+    const votePct = toFloat(r.vote_percentage);
+
+    if (!year || !constituency || !party) {
+      continue;
+    }
+
+    await db.execute(insertResultsSql, [
+      year,
+      constituency,
+      ctype,
+      candidates,
+      party,
+      voteCount,
+      votePct,
+    ]);
   }
 
-  // 2) Elector stats
+  // 2) Elector stats (API headers are snake_case as per your comment)
   console.log("Fetching elector stats...");
   const electors = await fetchAllRows(DATASET_ELECTORS);
 
   console.log("Upserting ge_elector_stats...");
+  const registeredCol = electorMap.registered || "registered_electors";
+  const rejectedCol = electorMap.rejected || "rejected_votes";
+  const spoiltCol = electorMap.spoilt || "spoilt_ballots";
+
   const insertElectorsSql = `
     INSERT INTO ge_elector_stats
-      (year, constituency, registered_electors, rejected_votes, spoilt_ballots)
+      (year, constituency, ${registeredCol}, ${rejectedCol}, ${spoiltCol})
     VALUES (?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-      registered_electors = VALUES(registered_electors),
-      rejected_votes = VALUES(rejected_votes),
-      spoilt_ballots = VALUES(spoilt_ballots)
+      ${registeredCol} = VALUES(${registeredCol}),
+      ${rejectedCol} = VALUES(${rejectedCol}),
+      ${spoiltCol} = VALUES(${spoiltCol})
   `;
 
-  // Keys in this dataset can vary slightly; we match common variants defensively:
   for (const r of electors) {
-    const year = toInt(pick(r, ["Year", "year"]));
-    const constituency = String(pick(r, ["Constituency", "constituency"]) || "").trim();
+    const year = toInt(r.year);
+    const constituency = String(r.constituency || "").trim();
 
-    const registered = toInt(pick(r, ["Registered Electors", "registered_electors", "registered_elector"]));
-    const rejected = toInt(pick(r, ["Rejected Votes", "rejected_votes", "rejected_vote"]));
-    const spoilt = toInt(pick(r, ["Spoilt Ballots", "spoilt_ballots", "spoilt_ballot"]));
+    const registered = toInt(r.no_of_registered_electors);
+    const rejected = toInt(r.no_of_rejected_votes);
+    const spoilt = toInt(r.no_of_spoilt_ballot_papers);
 
-    if (!year || !constituency) continue;
-    await db.execute(insertElectorsSql, [year, constituency, registered, rejected, spoilt]);
+    if (!year || !constituency) {
+      continue;
+    }
+
+    await db.execute(insertElectorsSql, [
+      year,
+      constituency,
+      registered,
+      rejected,
+      spoilt,
+    ]);
   }
 
-  // 3) Election dates
+  // 3) Election dates (API headers are snake_case as per your comment)
   console.log("Fetching election dates...");
   const dates = await fetchAllRows(DATASET_DATES);
 
@@ -153,114 +297,133 @@ const insertResultsSql = `
       polling_day = VALUES(polling_day)
   `;
 
-  function toDate(v) {
-    const s = String(v || "").trim();
-    if (!s) return null;
-    // Expecting YYYY-MM-DD or similar from dataset; if not, store null and fix later
-    return s.slice(0, 10);
-  }
-
   for (const r of dates) {
-    const year = toInt(pick(r, ["Year", "year"]));
-    const nomination = toDate(pick(r, ["Nomination Day", "nomination_day"]));
-    const polling = toDate(pick(r, ["Polling Day", "polling_day"]));
+    const year = toInt(r.year);
+    const nomination = toDate(r.nomination_day);
+    const polling = toDate(r.polling_day);
 
-    if (!year) continue;
+    if (!year) {
+      continue;
+    }
+
     await db.execute(insertDatesSql, [year, nomination, polling]);
   }
 
-  // 4) Parties list
+  // 4) Parties list (API headers are snake_case as per your comment)
   console.log("Fetching parties list...");
   const parties = await fetchAllRows(DATASET_PARTIES);
 
   console.log("Upserting political_parties...");
+  const abbrCol = partiesMap.abbr || "party";
+  const nameCol = partiesMap.name || "party_name";
+
   const insertPartiesSql = `
-    INSERT INTO political_parties (party, party_name)
+    INSERT INTO political_parties (${abbrCol}, ${nameCol})
     VALUES (?, ?)
     ON DUPLICATE KEY UPDATE
-      party_name = VALUES(party_name)
+      ${nameCol} = VALUES(${nameCol})
   `;
 
   for (const r of parties) {
-    const party = String(pick(r, ["Party", "party", "Abbreviation", "abbreviation"]) || "").trim();
-    const name = String(pick(r, ["Party Name", "party_name", "Name", "name"]) || "").trim() || null;
-    if (!party) continue;
-    await db.execute(insertPartiesSql, [party, name]);
+    const abbr = String(r.abbreviation || "").trim();
+    const fullName = String(r.political_party || "").trim() || null;
+
+    if (!abbr) {
+      continue;
+    }
+
+    await db.execute(insertPartiesSql, [abbr, fullName]);
   }
 
+  // ---- Derived summary tables for dashboard (winner + margin + turnout) ----
   console.log("Refreshing derived summary tables...");
   await db.query("DELETE FROM ge_top_parties");
   await db.query("DELETE FROM ge_summary");
 
-  // Build winner, margin, top3 parties and turnout
-const refreshSql = `
+  // Turnout uses: valid votes + rejected + spoilt, divided by registered.
+  // vote_percentage in dataset is a fraction (0..1), so margin stored as percentage points here.
+  const refreshSql = `
   INSERT INTO ge_summary (year, constituency, constituency_type, winner_party, margin_pct, turnout_pct)
   SELECT
-    t.year,
-    t.constituency,
-    t.constituency_type,
-    t.winner_party,
-    (t.winner_pct - t.runnerup_pct) AS margin_pct,
+    s.year,
+    s.constituency,
+    s.constituency_type,
+    s.winner_party,
+    (s.winner_share - s.runnerup_share) * 100 AS margin_pct,
     CASE
-      WHEN e.registered_electors IS NULL OR e.registered_electors = 0 THEN NULL
-      ELSE ((t.total_valid_votes + COALESCE(e.rejected_votes,0)) / e.registered_electors) * 100
+      WHEN e.${registeredCol} IS NULL OR e.${registeredCol} = 0 THEN NULL
+      ELSE (
+        (
+          s.total_valid_votes
+          + COALESCE(e.${rejectedCol}, 0)
+          + COALESCE(e.${spoiltCol}, 0)
+        ) / e.${registeredCol}
+      ) * 100
     END AS turnout_pct
+  FROM (
+    SELECT
+      x.year,
+      x.constituency,
+      MAX(x.constituency_type) AS constituency_type,
+      SUM(x.party_votes) AS total_valid_votes,
+
+      SUBSTRING_INDEX(
+        GROUP_CONCAT(x.party ORDER BY x.party_votes DESC SEPARATOR ','),
+        ',', 1
+      ) AS winner_party,
+
+      -- shares computed off party vote totals
+      MAX(x.party_votes / NULLIF(x.total_votes, 0)) AS winner_share,
+
+      CAST(
+        SUBSTRING_INDEX(
+          SUBSTRING_INDEX(
+            GROUP_CONCAT(x.party_votes / NULLIF(x.total_votes, 0) ORDER BY x.party_votes DESC SEPARATOR ','),
+            ',', 2
+          ),
+          ',', -1
+        ) AS DECIMAL(10, 6)
+      ) AS runnerup_share
+    FROM (
+      SELECT
+        p.year,
+        p.constituency,
+        p.party,
+        MAX(p.constituency_type) AS constituency_type,
+        SUM(COALESCE(p.vote_count, 0)) AS party_votes,
+        SUM(SUM(COALESCE(p.vote_count, 0))) OVER (PARTITION BY p.year, p.constituency) AS total_votes
+      FROM ge_candidate_results p
+      GROUP BY p.year, p.constituency, p.party
+    ) x
+    GROUP BY x.year, x.constituency
+  ) s
+  LEFT JOIN ge_elector_stats e
+    ON e.year = s.year AND e.constituency = s.constituency
+`;
+  await db.query(refreshSql);
+
+  const topSql = `
+  INSERT INTO ge_top_parties (year, constituency, party, rank_no)
+  SELECT
+    x.year,
+    x.constituency,
+    x.party,
+    x.rank_no
   FROM (
     SELECT
       r.year,
       r.constituency,
-      MAX(r.constituency_type) AS constituency_type,
-
-      -- total votes for turnout
-      SUM(COALESCE(r.vote_count, 0)) AS total_valid_votes,
-
-      -- winner = party with max vote_percentage
-      SUBSTRING_INDEX(
-        GROUP_CONCAT(r.party ORDER BY r.vote_percentage DESC SEPARATOR ','),
-        ',', 1
-      ) AS winner_party,
-
-      -- winner pct = max
-      MAX(r.vote_percentage) AS winner_pct,
-
-      -- runner-up pct = 2nd highest
-      SUBSTRING_INDEX(
-        SUBSTRING_INDEX(
-          GROUP_CONCAT(r.vote_percentage ORDER BY r.vote_percentage DESC SEPARATOR ','),
-          ',', 2
-        ),
-        ',', -1
-      ) AS runnerup_pct
+      r.party,
+      DENSE_RANK() OVER (
+        PARTITION BY r.year, r.constituency
+        ORDER BY SUM(COALESCE(r.vote_count, 0)) DESC
+      ) AS rank_no
     FROM ge_candidate_results r
-    WHERE r.vote_percentage IS NOT NULL
-    GROUP BY r.year, r.constituency
-  ) t
-  LEFT JOIN ge_elector_stats e
-    ON e.year = t.year AND e.constituency = t.constituency
+    GROUP BY r.year, r.constituency, r.party
+  ) x
+  WHERE x.rank_no <= 3
 `;
-await db.query(refreshSql);
-
-
-const topSql = `
-  INSERT INTO ge_top_parties (year, constituency, party, rank_no)
-  SELECT
-    r1.year,
-    r1.constituency,
-    r1.party,
-    (
-      SELECT COUNT(*)
-      FROM ge_candidate_results r2
-      WHERE r2.year = r1.year
-        AND r2.constituency = r1.constituency
-        AND r2.vote_percentage IS NOT NULL
-        AND r2.vote_percentage > r1.vote_percentage
-    ) + 1 AS rank_no
-  FROM ge_candidate_results r1
-  WHERE r1.vote_percentage IS NOT NULL
-  HAVING rank_no <= 3
-`;
-await db.query(topSql);
-
+  await db.query(topSql);
 
   await db.end();
   console.log("Done.");
