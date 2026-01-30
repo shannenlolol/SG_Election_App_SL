@@ -64,12 +64,12 @@ export default function DashboardPage() {
 
   return (
     <div className="page-shell">
-      <div className="page-header">
+      {/* <div className="page-header">
         <div className="page-title">Dashboard</div>
         <div className="page-subtitle">
           Search and compare outcomes across years and constituencies.
         </div>
-      </div>
+      </div> */}
 
       <div className="card-surface">
         <iframe

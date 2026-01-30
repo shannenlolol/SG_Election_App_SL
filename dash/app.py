@@ -283,7 +283,7 @@ def render_search_tab():
                     ),
                     html.Div(
                         [
-                            html.Label("Constituency (multi-select)", className="label"),
+                            html.Label("Constituency", className="label"),
                             dcc.Dropdown(
                                 id="dd-consts",
                                 options=[],
@@ -292,19 +292,6 @@ def render_search_tab():
                                 searchable=True,
                                 placeholder="Type to search constituencies…",
                                 className="control",
-                            ),
-                        ],
-                        className="field span-2",
-                    ),
-                    html.Div(
-                        [
-                            html.Label("Search text (optional)", className="label"),
-                            dcc.Input(
-                                id="inp-q",
-                                type="text",
-                                value="",
-                                placeholder="Search by constituency name…",
-                                className="text-input",
                             ),
                         ],
                         className="field span-2",
@@ -488,7 +475,7 @@ def init_filters(options_data, _tab):
 
     years_sorted = sorted([int(y) for y in years], reverse=True)
     year_options = [{"label": str(y), "value": int(y)} for y in years_sorted]
-    year_default = years_sorted[:]  # select all
+    year_default = []
 
     party_options = []
     for p in parties:
@@ -533,10 +520,9 @@ def init_filters(options_data, _tab):
     Input("dd-winners", "value"),
     Input("ck-types", "value"),
     Input("dd-consts", "value"),
-    Input("inp-q", "value"),
     State("store-options", "data"),
 )
-def update_table(years, winners, types, constituencies, q, options_data):
+def update_table(years, winners, types, constituencies, options_data):
     if not options_data:
         return "—", "—", "—", [], []
 
@@ -544,14 +530,11 @@ def update_table(years, winners, types, constituencies, q, options_data):
     winners = winners or []
     types = types or []
     constituencies = constituencies or []
-    q = (q or "").strip()
-
     params = {
         "years": to_csv(years),
         "winners": to_csv(winners),
         "types": to_csv(types),
         "constituencies": to_csv(constituencies),
-        "q": q,
     }
 
     try:

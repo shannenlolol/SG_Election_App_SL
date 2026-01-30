@@ -4,6 +4,7 @@
   --c-violet:#A78BFA;
 
   --bg:#070B14;
+  --bg2:#060A12;
   --surface:rgba(255,255,255,0.06);
   --surface2:rgba(255,255,255,0.09);
   --border:rgba(255,255,255,0.12);
@@ -16,155 +17,176 @@
 
 html,body{
   margin:0;
+  height:100%;
   background:transparent;
   color:var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 }
 
+/* Page should behave like a real dashboard */
 .page{
-  padding: 10px 10px 14px 10px;
-}
-
-.header{
+  min-height:100vh;
   display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  margin: 8px 2px 12px 2px;
+  flex-direction:column;
+  padding: 10px 12px 12px 12px;
 }
 
-.title{
-  font-size: 28px;
-  font-weight: 750;
-  letter-spacing: 0.2px;
-}
-
-.subtitle{
-  margin-top: 6px;
-  color: var(--muted);
-}
-
-.header-right{
+/* Content should allow the table to fill the remaining height */
+.tab-content{
+  flex:1;
+  min-height:0;
   display:flex;
-  align-items:center;
-  gap:8px;
-  padding-top:4px;
+  flex-direction:column;
+  gap:10px;
 }
 
-.chip{
-  font-size: 12px;
-  color: rgba(255,255,255,0.8);
-  border: 1px solid rgba(255,255,255,0.14);
-  background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.04));
-  padding: 8px 10px;
-  border-radius: 999px;
-}
-
+/* Generic panel */
 .panel{
   border: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.04));
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: 0 18px 40px rgba(0,0,0,0.35);
 }
 
-.filters{
-  padding: 14px;
-  display:grid;
-  grid-template-columns: 220px 240px 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+/* ----------------------------
+   Tabs: same colour as background
+   ---------------------------- */
+.tabs{
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0 0 6px 0;
 }
 
+/* Dash Tabs structure: try to cover common classnames */
+.tabs .tab,
+.tabs .Tab,
+.tabs .dash-tab{
+  background: transparent !important;
+  border: 0 !important;
+  color: rgba(255,255,255,0.70) !important;
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  border-bottom: 1px solid rgba(255,255,255,0.10) !important;
+}
+
+.tabs .tab--selected,
+.tabs .Tab--selected,
+.tabs .dash-tab--selected{
+  background: transparent !important;
+  color: rgba(255,255,255,0.92) !important;
+  border-bottom: 2px solid rgba(33,212,253,0.55) !important;
+}
+
+.tabs .tab:hover,
+.tabs .Tab:hover,
+.tabs .dash-tab:hover{
+  color: rgba(255,255,255,0.92) !important;
+}
+
+/* Optional: remove any default tab container backgrounds */
+.tabs > div{
+  background: transparent !important;
+}
+
+/* ----------------------------
+   Filters row (compact like example)
+   ---------------------------- */
+.filters{
+  padding: 10px 12px;
+  display:grid;
+  grid-template-columns: 1fr 1fr 1fr; /* 3 compact fields like the example */
+  gap: 10px;
+}
+
+/* Your constituency dropdown currently spans 2.
+   Remove span behaviour so everything stays compact */
+.span-2{ grid-column: auto; }
+
 .field{ min-width:0; }
-.span-2{ grid-column: span 2; }
 
 .label{
   display:block;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.60);
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
 }
 
-.hint{
-  margin-top: 8px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.55);
-}
-
+/* ----------------------------
+   KPI row (small tiles)
+   ---------------------------- */
 .kpi-grid{
   display:grid;
   grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 10px;
 }
 
 .kpi{
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.045);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.035);
 }
 
 .kpi-title{
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 11px;
+  color: rgba(255,255,255,0.60);
 }
 
 .kpi-value{
-  margin-top: 8px;
-  font-size: 22px;
+  margin-top: 6px;
+  font-size: 18px;
   font-weight: 800;
   letter-spacing: 0.2px;
   font-variant-numeric: tabular-nums;
 }
 
 .kpi-foot{
-  margin-top: 6px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.52);
+  margin-top: 4px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.48);
 }
 
-.table-panel{
-  padding: 0;
-  overflow: hidden;
-}
-
-.alert{
-  border: 1px solid rgba(33,212,253,0.35);
-  background: rgba(33,212,253,0.10);
-  color: rgba(255,255,255,0.92);
-  padding: 12px 14px;
-  border-radius: 14px;
-}
-
-/* Dash dropdown + input styling */
-.control .Select-control,
-.control .Select-menu-outer{
-  border-radius: 12px !important;
-}
-
+/* ----------------------------
+   Controls: dropdowns + checklist look modern + compact
+   ---------------------------- */
 .control .Select-control{
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  background: rgba(255,255,255,0.06) !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  background: rgba(255,255,255,0.05) !important;
   box-shadow: none !important;
 }
 
-.control .Select-value-label,
-.control .Select-placeholder{
+.control .Select-placeholder,
+.control .Select-value-label{
+  line-height: 34px !important;
+  font-size: 12px !important;
   color: rgba(255,255,255,0.88) !important;
 }
 
+.control .Select-input{
+  height: 34px !important;
+}
+
 .control .Select-input input{
+  height: 34px !important;
+  line-height: 34px !important;
+  font-size: 12px !important;
   color: rgba(255,255,255,0.88) !important;
 }
 
 .control .Select-arrow-zone{
-  color: rgba(255,255,255,0.7) !important;
+  color: rgba(255,255,255,0.65) !important;
 }
 
 .control .Select-menu-outer{
-  background: rgba(11,18,32,0.95) !important;
-  border: 1px solid rgba(255,255,255,0.14) !important;
+  background: rgba(11,18,32,0.98) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 12px !important;
   overflow: hidden;
 }
 
@@ -176,13 +198,41 @@ html,body{
   background: rgba(33,212,253,0.14) !important;
 }
 
+.checklist{
+  font-size: 12px;
+  color: rgba(255,255,255,0.82);
+}
+
+/* ----------------------------
+   Table panel should fill remaining height
+   ---------------------------- */
+.table-panel{
+  padding: 0;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Make the table feel like the example */
+.dash-table-container .dash-spreadsheet-container{
+  border-radius: 14px;
+}
+
 /* Mobile */
 @media (max-width: 980px){
   .filters{
     grid-template-columns: 1fr;
   }
-  .span-2{ grid-column: auto; }
   .kpi-grid{
     grid-template-columns: 1fr;
   }
+}
+
+/* Alert stays fine */
+.alert{
+  border: 1px solid rgba(33,212,253,0.35);
+  background: rgba(33,212,253,0.10);
+  color: rgba(255,255,255,0.92);
+  padding: 12px 14px;
+  border-radius: 14px;
 }
