@@ -1,10 +1,32 @@
 import "dotenv/config";
 import mysql from "mysql2/promise";
-
+// 1. List of Political Parties
+// abbreviation,  political_party 
+// WP,	Workers' Party
+// political_parties
 const DATASET_PARTIES = "d_ef163fd9ebc3c2f21032c29da3bd3f77";
+
+// 2. Parliamentary General Election - Registered Electors, Rejected Votes and Spoilt Ballots
+// year, constituency, no_of_registered_electors, no_of_rejected_votes, no_of_spoilt_ballot_papers
+// 2025	Tanjong Pagar	140194	3681	95
+// 2025	West Coast-Jurong West	158836	1438	53
+// ge_elector_stats
 const DATASET_ELECTORS = "d_fdfb854fcb7428b29734d2e0c0674220";
+
+// 3. Parliamentary General Election Dates
+// year, nomination_day, polling_day
+// 2020	2020-06-30	2020-07-10
+// 2025	2025-04-23	2025-05-03
+// ge_dates
 const DATASET_DATES = "d_00d89e5d100a612e36432d91493785bd";
+
+// 4. Parliamentary General Election Results by Candidate
+// year, constituency, constituency_type, candidates, party, vote_count, vote_percentage
+// 2025,	Yio Chu Kang,	SMC,	Michael Fang Amin,	PAR,	4876,	0.212500
+// 2025,	Yio Chu Kang,	SMC,	Yip Hon Weng,	PAP,	18066,	0.787500
+// ge_candidate_results
 const DATASET_RESULTS = "d_581a30bee57fa7d8383d6bc94739ad00";
+
 
 async function fetchAllRows(datasetId) {
   const base = "https://data.gov.sg/api/action/datastore_search";
