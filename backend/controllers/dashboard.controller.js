@@ -173,18 +173,26 @@ async function getDashboardDetails(req, res) {
     const [partyRows] = await pool.execute(
       `
       SELECT
-        r.party,
-        SUM(COALESCE(r.vote_count, 0)) AS vote_count,
+        t.party,
+        t.vote_count,
         CASE
-          WHEN SUM(SUM(COALESCE(r.vote_count, 0))) OVER (PARTITION BY r.year, r.constituency) = 0 THEN NULL
-          ELSE SUM(COALESCE(r.vote_count, 0)) / SUM(SUM(COALESCE(r.vote_count, 0))) OVER (PARTITION BY r.year, r.constituency)
+          WHEN SUM(t.vote_count) OVER (PARTITION BY t.year, t.constituency) = 0 THEN NULL
+          ELSE t.vote_count / SUM(t.vote_count) OVER (PARTITION BY t.year, t.constituency)
         END AS vote_share,
-        GROUP_CONCAT(DISTINCT r.candidates ORDER BY r.candidates SEPARATOR "; ") AS candidates
-      FROM ge_candidate_results r
-      WHERE r.year = ?
-        AND r.constituency = ?
-      GROUP BY r.party
-      ORDER BY vote_count DESC
+        t.candidates
+      FROM (
+        SELECT
+          r.year,
+          r.constituency,
+          r.party,
+          SUM(COALESCE(r.vote_count, 0)) AS vote_count,
+          GROUP_CONCAT(DISTINCT r.candidates ORDER BY r.candidates SEPARATOR "; ") AS candidates
+        FROM ge_candidate_results r
+        WHERE r.year = ?
+          AND r.constituency = ?
+        GROUP BY r.year, r.constituency, r.party
+      ) t
+      ORDER BY t.vote_count DESC
       `,
       [year, constituency],
     );

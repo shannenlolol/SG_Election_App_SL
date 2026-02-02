@@ -11,6 +11,7 @@
 
   --text:rgba(255,255,255,0.92);
   --muted:rgba(255,255,255,0.65);
+  --test:rgba(15, 10, 49, 0.88);
 }
 
 *{ box-sizing:border-box; }
@@ -93,16 +94,54 @@ html,body{
 /* ----------------------------
    Filters row (compact like example)
    ---------------------------- */
+/* --- Force filters into ONE toolbar row --- */
 .filters{
   padding: 10px 12px;
-  display:grid;
-  grid-template-columns: 1fr 1fr 1fr; /* 3 compact fields like the example */
+  display: flex !important;
+  flex-direction: row;
   gap: 10px;
+  align-items: flex-end;
+  flex-wrap: nowrap;          /* key: do NOT allow wrapping */
+}
+
+/* allow children to shrink (Dash dropdowns often refuse) */
+.filters .field{
+  flex: 1 1 0;
+  min-width: 0;               /* key: lets dropdown shrink */
+}
+
+/* give Year/Winner/Type smaller widths, Constituency bigger */
+.filters .field:nth-child(1){ flex: 0.9 1 0; }
+.filters .field:nth-child(2){ flex: 1.1 1 0; }
+.filters .field:nth-child(3){ flex: 0.9 1 0; }
+.filters .field:nth-child(4){ flex: 1.6 1 0; }
+
+/* slightly smaller labels so toolbar stays short */
+.label{
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+
+/* dropdown must be allowed to shrink */
+.control{
+  min-width: 0;
+}
+
+/* the react-select container sometimes sets a min-width; force it */
+.control .Select,
+.control .Select-control{
+  min-width: 0 !important;
+}
+.filters.panel{
+  border-radius: 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: none;
 }
 
 /* Your constituency dropdown currently spans 2.
    Remove span behaviour so everything stays compact */
-.span-2{ grid-column: auto; }
+
 
 .field{ min-width:0; }
 
@@ -117,36 +156,19 @@ html,body{
 /* ----------------------------
    KPI row (small tiles)
    ---------------------------- */
-.kpi-grid{
-  display:grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
+.kpi-line{
+  padding: 8px 2px 6px 2px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.70);
 }
 
-.kpi{
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.035);
+.kpi-line-muted{
+  color: rgba(255,255,255,0.65);
 }
 
-.kpi-title{
-  font-size: 11px;
-  color: rgba(255,255,255,0.60);
-}
-
-.kpi-value{
-  margin-top: 6px;
-  font-size: 18px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  font-variant-numeric: tabular-nums;
-}
-
-.kpi-foot{
-  margin-top: 4px;
-  font-size: 11px;
-  color: rgba(255,255,255,0.48);
+.kpi-line-strong{
+  color: rgba(255,255,255,0.92);
+  font-weight: 750;
 }
 
 /* ----------------------------
@@ -235,4 +257,73 @@ html,body{
   color: rgba(255,255,255,0.92);
   padding: 12px 14px;
   border-radius: 14px;
+}
+
+/* Prevent any default light highlight bleeding through */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td,
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th{
+  background-clip: padding-box;
+}
+
+/* Make focus outline subtle (not bright) */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td:focus{
+  outline: none !important;
+}
+
+/* Disable hover styling on header cells */
+.dash-table-container .dash-spreadsheet-container th:hover{
+  background-color: inherit !important;
+}
+
+/* Disable hover styling on the SELECTED row */
+.dash-table-container tr.selected:hover td{
+  background-color: inherit !important;
+}
+
+/* Also disable the hover “border/outline” feel on selected row */
+.dash-table-container tr.selected:hover td.focused,
+.dash-table-container tr.selected:hover td.cell--selected{
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* Dash DataTable tooltip bubble */
+.dash-table-tooltip{
+  background: rgba(11,18,32,0.98) !important;
+  color: rgba(255,255,255,0.92) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  text-align: center !important;
+  box-shadow: 0 14px 28px rgba(0,0,0,0.45) !important;
+}
+
+/* Some versions wrap tooltip content inside another div */
+.dash-table-tooltip *{
+  color: rgba(255,255,255,0.92) !important;
+  text-align: center !important;
+}
+
+/* DataTable tooltips (dash_table 3.4.0) */
+.dash-table-tooltip{
+  background: rgba(11,18,32,0.98) !important;
+  color: rgba(255,255,255,0.92) !important;
+  border: 1px solid rgba(255,255,255,0.14) !important;
+  border-radius: 10px !important;
+  padding: 10px 12px !important;
+  font-size: 12px !important;
+  text-align: center !important;
+  max-width: 340px !important;
+  white-space: normal !important;
+  box-shadow: 0 14px 28px rgba(0,0,0,0.45) !important;
+}
+
+/* Ensure inner text inherits */
+.dash-table-tooltip *{
+  color: rgba(255,255,255,0.92) !important;
+  text-align: center !important;
+}
+
+.dash-table-tooltip .dash-table-tooltip-inner{
+  background: rgba(11,18,32,0.98) !important;
 }

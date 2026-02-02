@@ -20,6 +20,11 @@ def backend_get_json(path, params=None):
     url = f"{BACKEND_BASE}{path}"
     incoming_cookies = dict(request.cookies)
 
+    print("\n=== [backend_get_json] ===")
+    print("url:", url)
+    print("params:", params)
+    print("incoming cookie keys:", list(incoming_cookies.keys()))
+
     r = requests.get(
         url,
         params=params,
@@ -31,6 +36,10 @@ def backend_get_json(path, params=None):
         },
         timeout=20,
     )
+
+    print("status:", r.status_code)
+    print("text head:", (r.text or "")[:300])
+
     r.raise_for_status()
     return r.json()
 
@@ -183,6 +192,7 @@ app = Dash(
     __name__,
     requests_pathname_prefix="/dash/",
     routes_pathname_prefix="/dash/",
+    suppress_callback_exceptions=True,
 )
 server = app.server
 
@@ -212,6 +222,7 @@ app.layout = html.Div(
 
         dcc.Store(id="store-options", data=None),
         dcc.Store(id="store-expanded", data=None),
+        dcc.Store(id="store-active-row", data=None),
 
         dcc.Tabs(
             id="tabs",
@@ -239,7 +250,7 @@ def render_search_tab():
                 [
                     html.Div(
                         [
-                            html.Label("Year (multi-select)", className="label"),
+                            html.Label("Year", className="label"),
                             dcc.Dropdown(
                                 id="dd-years",
                                 options=[],
@@ -253,7 +264,7 @@ def render_search_tab():
                     ),
                     html.Div(
                         [
-                            html.Label("Winner party (optional)", className="label"),
+                            html.Label("Winner party", className="label"),
                             dcc.Dropdown(
                                 id="dd-winners",
                                 options=[],
@@ -268,19 +279,22 @@ def render_search_tab():
                     html.Div(
                         [
                             html.Label("Constituency type", className="label"),
-                            dcc.Checklist(
-                                id="ck-types",
+                            dcc.Dropdown(
+                                id="dd-types",
                                 options=[
                                     {"label": "GRC", "value": "GRC"},
                                     {"label": "SMC", "value": "SMC"},
                                 ],
                                 value=["GRC", "SMC"],
-                                inline=True,
-                                className="checklist",
+                                # value=[],
+                                multi=True,
+                                placeholder="All types",
+                                className="control",
                             ),
                         ],
                         className="field",
                     ),
+
                     html.Div(
                         [
                             html.Label("Constituency", className="label"),
@@ -290,45 +304,30 @@ def render_search_tab():
                                 value=[],
                                 multi=True,
                                 searchable=True,
-                                placeholder="Type to search constituencies…",
+                                placeholder="All Constituencies",
                                 className="control",
                             ),
                         ],
-                        className="field span-2",
+                        className="field",
                     ),
+
                 ],
                 className="panel filters",
             ),
 
-            html.Div(
+                        html.Div(
                 [
-                    html.Div(
-                        [
-                            html.Div("Rows matched", className="kpi-title"),
-                            html.Div(id="kpi-count", className="kpi-value"),
-                            html.Div("After filters", className="kpi-foot"),
-                        ],
-                        className="kpi",
-                    ),
-                    html.Div(
-                        [
-                            html.Div("Average turnout", className="kpi-title"),
-                            html.Div(id="kpi-turnout", className="kpi-value"),
-                            html.Div("Across matched rows", className="kpi-foot"),
-                        ],
-                        className="kpi",
-                    ),
-                    html.Div(
-                        [
-                            html.Div("Years selected", className="kpi-title"),
-                            html.Div(id="kpi-years", className="kpi-value"),
-                            html.Div("Filter scope", className="kpi-foot"),
-                        ],
-                        className="kpi",
-                    ),
+                    html.Span("Showing ", className="kpi-line-muted"),
+                    html.Span(id="kpi-years", className="kpi-line-strong"),
+                    html.Span(". Matched entries: ", className="kpi-line-muted"),
+                    html.Span(id="kpi-count", className="kpi-line-strong"),
+                    html.Span(".", className="kpi-line-muted"),
+                    html.Span(" Average turnout: ", className="kpi-line-muted"),
+                    html.Span(id="kpi-turnout", className="kpi-line-strong"),
                 ],
-                className="kpi-grid",
+                className="kpi-line",
             ),
+
 
             html.Div(
                 [
@@ -341,18 +340,27 @@ def render_search_tab():
                             {"name": "Winner", "id": "winner_party"},
                             {"name": "Margin", "id": "margin_pct"},
                         ],
+                        css=[
+                            {
+                                "selector": ".dash-spreadsheet-container th:hover",
+                                "rule": "background-color: rgba(15, 10, 49, 0.38) !important; color: rgba(255,255,255,0.85) !important;",
+                            },
+                        ],
+                        tooltip_delay=0,
+                        tooltip_duration=None,
+
                         data=[],
                         sort_action="native",
                         page_size=14,
                         style_table={"overflowX": "auto"},
                         style_header={
                             "fontWeight": 700,
-                            "backgroundColor": "rgba(255,255,255,0.04)",
+                            "backgroundColor": "rgba(15, 10, 49, 0.38)",
                             "borderBottom": "1px solid rgba(255,255,255,0.10)",
                             "color": "rgba(255,255,255,0.85)",
                         },
                         style_cell={
-                            "backgroundColor": "rgba(0,0,0,0)",
+                            "backgroundColor": "rgba(50, 49, 49, 0.78)",
                             "borderBottom": "1px solid rgba(255,255,255,0.06)",
                             "color": "rgba(255,255,255,0.88)",
                             "padding": "12px 12px",
@@ -360,22 +368,8 @@ def render_search_tab():
                             "whiteSpace": "normal",
                             "height": "auto",
                         },
-                        style_data_conditional=[
-                            {
-                                "if": {"row_index": "odd"},
-                                "backgroundColor": "rgba(255,255,255,0.02)",
-                            },
-                            {
-                                "if": {"state": "active"},
-                                "border": "1px solid rgba(33,212,253,0.45)",
-                            },
-                            {
-                                "if": {"column_id": "margin_pct"},
-                                "fontVariantNumeric": "tabular-nums",
-                            },
-                        ],
+                        style_data_conditional=[],
                         tooltip_data=[],
-                        tooltip_duration=None,
                     )
                 ],
                 className="panel table-panel",
@@ -423,6 +417,59 @@ def render_summary_tab():
         ]
     )
 
+@app.callback(
+    Output("store-active-row", "data"),
+    Input("tbl", "active_cell"),
+)
+def store_active_row(active_cell):
+    if not active_cell:
+        return None
+    row_index = active_cell.get("row")
+    if row_index is None:
+        return None
+    return int(row_index)
+
+@app.callback(
+    Output("tbl", "style_data_conditional"),
+    Input("store-active-row", "data"),
+)
+def style_selected_row(active_row):
+    styles = [
+        # keep margin formatting
+        {
+            "if": {"column_id": "margin_pct"},
+            "fontVariantNumeric": "tabular-nums",
+        },
+    ]
+
+    if isinstance(active_row, int) and active_row >= 0:
+        selected_bg = "rgba(50, 49, 49, 0.38)"
+        selected_border = "1px solid rgba(33,212,253,0.35)"
+
+        # whole row selected
+        styles.insert(
+            0,
+            {
+                "if": {"row_index": active_row},
+                "backgroundColor": selected_bg,
+                "border": selected_border,
+                "color": "rgba(255,255,255,0.98)",
+            },
+        )
+
+        # disable hover effect for the selected row by forcing same styles on hover
+        styles.insert(
+            1,
+            {
+                "if": {"state": "hover", "row_index": active_row},
+                "backgroundColor": selected_bg,
+                "border": selected_border,
+                "color": "rgba(255,255,255,0.98)",
+            },
+        )
+
+
+    return styles
 
 @app.callback(
     Output("tab-content", "children"),
@@ -518,7 +565,7 @@ def init_filters(options_data, _tab):
     Output("tbl", "tooltip_data"),
     Input("dd-years", "value"),
     Input("dd-winners", "value"),
-    Input("ck-types", "value"),
+    Input("dd-types", "value"),
     Input("dd-consts", "value"),
     State("store-options", "data"),
 )
@@ -711,8 +758,17 @@ def render_details(expanded_state):
 
         return [header, content], {"display": "block"}
 
-    except Exception:
-        return [html.Div("Failed to load details.", className="muted")], {"display": "block"}
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print("\n=== [render_details] FAILED ===")
+        print("year:", year, "constituency:", constituency)
+        print(tb)
+
+        return [
+            html.Div("Failed to load details.", className="muted"),
+            html.Pre(str(e), className="muted", style={"whiteSpace": "pre-wrap"}),
+        ], {"display": "block"}
 
 
 # ----------------------------
