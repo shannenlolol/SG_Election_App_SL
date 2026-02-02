@@ -6,7 +6,7 @@ const DASH_URL = "http://localhost:4000/dash/"; // your iframe src
 
 export default function DashboardPage() {
   const iframeRef = React.useRef(null);
-  const [iframeHeight, setIframeHeight] = React.useState(1200);
+  const [iframeHeight, setIframeHeight] = React.useState(2000);
 
   useEffect(() => {
     function onMsg(e) {

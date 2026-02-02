@@ -60,9 +60,7 @@ def safe_pct(value, digits=3):
 
 
 def build_vote_bar(parties):
-    x = []
-    y = []
-    hover = []
+    fig = go.Figure()
 
     for p in parties:
         party = p.get("party") or ""
@@ -70,119 +68,199 @@ def build_vote_bar(parties):
         vote_share = p.get("vote_share")
         full_name = p.get("party_full_name") or party
 
-        x.append(party)
-
         if vote_count is None:
-            y.append(0)
+            vote_count = 0
         else:
-            y.append(int(vote_count))
+            vote_count = int(vote_count)
 
         if vote_share is None:
             share_txt = "—"
         else:
             share_txt = f"{float(vote_share) * 100:.2f}%"
 
-        hover.append(f"{full_name}<br>Votes: {vote_count}<br>Share: {share_txt}")
+        hover = f"{full_name}<br>Votes: {vote_count}<br>Share: {share_txt}"
 
-    fig = go.Figure(
-        data=[
+        fig.add_trace(
             go.Bar(
-                x=x,
-                y=y,
-                hovertext=hover,
+                name=party,
+                x=[party],
+                y=[vote_count],
+                hovertext=[hover],
                 hoverinfo="text",
             )
-        ]
-    )
+        )
+
     fig.update_layout(
         title="Votes by party",
-        margin=dict(l=20, r=20, t=50, b=30),
-        xaxis_title="Party",
-        yaxis_title="Votes",
-        height=340,
+        margin=dict(l=26, r=26, t=56, b=46),
+        height=320,
+
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=12, color="rgba(255,255,255,0.85)", weight=700),
+
+        barmode="group",
+        showlegend=False,
+
+        xaxis=dict(
+            title="Party",
+            gridcolor="rgba(255,255,255,0.08)",
+            zerolinecolor="rgba(255,255,255,0.10)",
+            tickfont=dict(color="rgba(255,255,255,0.82)"),
+        ),
+        yaxis=dict(
+            title="Votes",
+            gridcolor="rgba(255,255,255,0.08)",
+            zerolinecolor="rgba(255,255,255,0.10)",
+            tickfont=dict(color="rgba(255,255,255,0.82)"),
+        ),
     )
+
+    fig.update_traces(
+        hoverlabel=dict(
+            bgcolor="rgba(11,18,32,0.98)",
+            bordercolor="rgba(255,255,255,0.14)",
+            font=dict(color="rgba(255,255,255,0.92)"),
+        )
+    )
+
     return fig
+
 
 
 def build_elector_pie(elector):
     if not elector:
         fig = go.Figure()
         fig.update_layout(
-            title="Elector stats",
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=340,
+            height=320,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
         return fig
 
-    registered = elector.get("no_of_registered_electors") or 0
-    rejected = elector.get("no_of_rejected_votes") or 0
-    spoilt = elector.get("no_of_spoilt_ballot_papers") or 0
+    registered = int(elector.get("no_of_registered_electors") or 0)
+    rejected = int(elector.get("no_of_rejected_votes") or 0)
+    spoilt = int(elector.get("no_of_spoilt_ballot_papers") or 0)
 
     labels = [
         "Registered electors",
         "Rejected votes",
         "Spoilt ballot papers",
     ]
-    values = [
-        int(registered),
-        int(rejected),
-        int(spoilt),
-    ]
+    values = [registered, rejected, spoilt]
 
     fig = go.Figure(
         data=[
             go.Pie(
                 labels=labels,
                 values=values,
-                hole=0.35,
+                hole=0.42,
+
+                # Only show percent for large slices
+                textinfo="percent",
+                textposition="inside",
+                insidetextorientation="radial",
+
+                # Hide labels for tiny slices
+                pull=[0, 0, 0],
+                sort=False,
+
+                hovertemplate="%{label}<br>%{value:,}<br>%{percent}<extra></extra>",
             )
         ]
     )
-    fig.update_layout(
-        title="Registered vs rejected vs spoilt",
-        margin=dict(l=20, r=20, t=50, b=30),
-        height=340,
+
+    fig.update_traces(
+        textfont=dict(color="rgba(255,255,255,0.92)", size=13),
+        marker=dict(
+            line=dict(color="rgba(0,0,0,0)", width=0)
+        ),
     )
+
+    fig.update_layout(
+        title=dict(
+            text="Registered vs Rejected vs Spoilt Votes",
+            x=0.5,
+            y=0.95,
+            xanchor="center",
+            yanchor="top",
+            font=dict(size=16, color="rgba(255,255,255,0.85)", weight=700),
+        ),
+
+        height=320,
+        margin=dict(l=28, r=140, t=60, b=28),
+
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="rgba(255,255,255,0.85)"),
+
+        legend=dict(
+            x=1.02,
+            y=0.5,
+            xanchor="left",
+            yanchor="middle",
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(size=12, color="rgba(255,255,255,0.78)"),
+        ),
+    )
+
     return fig
 
 
+
 def parse_candidates(parties):
-    items = []
+    party_to_candidates = []
+    max_len = 0
+
+    def split_candidates(value):
+        if value is None:
+            return []
+
+        s = str(value).strip()
+        if not s:
+            return []
+
+        # Support both ";" and "|" delimiters
+        raw = []
+        for chunk in s.split(";"):
+            raw.extend(chunk.split("|"))
+
+        return [c.strip() for c in raw if c.strip()]
+
     for p in parties:
         party = p.get("party") or ""
         full_name = p.get("party_full_name") or ""
         cand_str = p.get("candidates") or ""
-        cand_list = [c.strip() for c in cand_str.split(";") if c.strip()]
+        cand_list = split_candidates(cand_str)
 
         title = party
         if full_name and full_name != party:
             title = f"{party} ({full_name})"
 
-        if cand_list:
-            items.append(
-                html.Div(
-                    [
-                        html.Div(title, className="detail-subtitle"),
-                        html.Ul([html.Li(c) for c in cand_list], className="detail-list"),
-                    ],
-                    className="detail-block",
-                )
-            )
-        else:
-            items.append(
-                html.Div(
-                    [
-                        html.Div(title, className="detail-subtitle"),
-                        html.Div("No candidate names available.", className="muted"),
-                    ],
-                    className="detail-block",
-                )
-            )
+        party_to_candidates.append((title, cand_list))
+        if len(cand_list) > max_len:
+            max_len = len(cand_list)
 
-    if not items:
+    if not party_to_candidates:
         return html.Div("No party/candidate data found.", className="muted")
 
-    return html.Div(items)
+    header = html.Tr([html.Th(title) for (title, _lst) in party_to_candidates])
+
+    body_rows = []
+    for i in range(max_len):
+        row_cells = []
+        for (_title, lst) in party_to_candidates:
+            val = lst[i] if i < len(lst) else ""
+            row_cells.append(html.Td(val))
+        body_rows.append(html.Tr(row_cells))
+
+    return html.Div(
+        html.Table(
+            [html.Thead(header), html.Tbody(body_rows)],
+            className="cand-table",
+        ),
+        className="cand-table-wrap",
+    )
 
 
 # ----------------------------
@@ -714,12 +792,8 @@ def render_details(expanded_state):
         header = html.Div(
             [
                 html.Div(
-                    f"Details — {constituency} ({year})",
+                    f"{constituency} ({year})",
                     className="detail-title",
-                ),
-                html.Div(
-                    "Click the same row again to collapse.",
-                    className="muted",
                 ),
             ],
             className="detail-header",
@@ -729,32 +803,39 @@ def render_details(expanded_state):
             [
                 html.Div(
                     [
-                        dcc.Graph(
-                            figure=vote_fig,
-                            config={"displayModeBar": False},
-                        )
+                        html.Div(
+                            [
+                                dcc.Graph(
+                                    figure=vote_fig,
+                                    config={"displayModeBar": False},
+                                )
+                            ],
+                            className="detail-card",
+                        ),
+                        html.Div(
+                            [
+                                dcc.Graph(
+                                    figure=elector_fig,
+                                    config={"displayModeBar": False},
+                                )
+                            ],
+                            className="detail-card",
+                        ),
                     ],
-                    className="detail-graph",
+                    className="detail-row",
                 ),
+
                 html.Div(
                     [
                         html.Div("Candidates", className="detail-section-title"),
                         candidates_block,
                     ],
-                    className="detail-candidates",
-                ),
-                html.Div(
-                    [
-                        dcc.Graph(
-                            figure=elector_fig,
-                            config={"displayModeBar": False},
-                        )
-                    ],
-                    className="detail-graph",
+                    className="detail-card",
                 ),
             ],
-            className="detail-grid",
+            className="detail-stack",
         )
+
 
         return [header, content], {"display": "block"}
 
