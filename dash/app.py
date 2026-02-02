@@ -5,11 +5,50 @@ import os
 import requests
 import plotly.graph_objects as go
 
+PARTY_COLOR_MAP = {
+    "PAP": "#E74C3C",  # red
+    "WP": "#2E86DE",   # blue
+}
+
+DEFAULT_PARTY_COLORS = [
+    "#9B59B6", "#1ABC9C", "#F39C12", "#E67E22", "#00B894",
+    "#6C5CE7", "#FD79A8", "#A29BFE", "#00CEC9", "#D63031",
+]
 
 BACKEND_BASE = os.getenv("BACKEND_BASE", "http://localhost:4000")
 
 DEBUG_LOGS = os.getenv("DASH_DEBUG_LOGS", "false").lower() == "true"
 
+def get_party_color(party, used_colors):
+    if party in PARTY_COLOR_MAP:
+        return PARTY_COLOR_MAP[party]
+
+    for c in DEFAULT_PARTY_COLORS:
+        if c not in used_colors and c not in PARTY_COLOR_MAP.values():
+            used_colors.add(c)
+            return c
+
+    # fallback
+    return "#95A5A6"
+def apply_dark_layout(fig, title, height):
+    fig.update_layout(
+        title=dict(
+            text=title,
+            x=0.02,
+            xanchor="left",
+            font=dict(size=16, color="rgba(255,255,255,0.90)", weight=700),
+        ),
+        height=height,
+        margin=dict(l=26, r=26, t=58, b=34),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="rgba(255,255,255,0.85)"),
+        legend=dict(
+            bgcolor="rgba(0,0,0,0)",
+            font=dict(color="rgba(255,255,255,0.75)", size=11),
+        ),
+    )
+    return fig
 
 def log(*args):
     if DEBUG_LOGS:
@@ -467,16 +506,16 @@ def render_summary_tab():
         [
             html.Div(
                 [
-                    html.Div(
-                        [
-                            html.Div("Summary", className="title"),
-                            html.Div(
-                                "Not grouped by constituency. Based on current dataset.",
-                                className="subtitle",
-                            ),
-                        ],
-                        className="header-block",
-                    )
+                    # html.Div(
+                    #     [
+                    #         html.Div("Summary", className="title"),
+                    #         html.Div(
+                    #             "Not grouped by constituency. Based on current dataset.",
+                    #             className="subtitle",
+                    #         ),
+                    #     ],
+                    #     className="header-block",
+                    # )
                 ],
                 className="panel",
             ),
@@ -887,50 +926,114 @@ def build_summary(tab_value):
             yearly[year][winner] = yearly[year].get(winner, 0) + 1
 
         # Overall pie
-        labels = list(overall.keys())
-        values = [overall[k] for k in labels]
+        # Overall winners (count of constituencies won)
+        overall = {}
+        yearly = {}
+
+        for r in rows:
+            year = r.get("year")
+            winner = r.get("winner_party") or "—"
+
+            overall[winner] = overall.get(winner, 0) + 1
+
+            if year not in yearly:
+                yearly[year] = {}
+            yearly[year][winner] = yearly[year].get(winner, 0) + 1
+
+        # --- Overall: ranked horizontal bar (replaces pie) ---
+        overall_items = sorted(overall.items(), key=lambda kv: kv[1], reverse=True)
+
+        # Optional: keep top N to reduce clutter
+        TOP_N = 12
+        shown = overall_items[:TOP_N]
+        others = overall_items[TOP_N:]
+
+        labels = [k for (k, _v) in shown]
+        values = [int(v) for (_k, v) in shown]
+
+        if others:
+            labels.append("Others")
+            values.append(sum(int(v) for (_k, v) in others))
+
+        used = set()
+        bar_colors = []
+        for p in labels:
+            if p == "Others":
+                bar_colors.append("rgba(255,255,255,0.28)")
+            else:
+                bar_colors.append(get_party_color(p, used))
 
         fig_overall = go.Figure(
             data=[
-                go.Pie(
-                    labels=labels,
-                    values=values,
-                    hole=0.35,
+                go.Bar(
+                    x=values,
+                    y=labels,
+                    orientation="h",
+                    marker=dict(color=bar_colors),
+                    hovertemplate="%{y}<br>Constituencies won: %{x}<extra></extra>",
                 )
             ]
         )
+
         fig_overall.update_layout(
-            title="Overall: constituencies won by party",
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=360,
+            yaxis=dict(autorange="reversed"),
+            xaxis=dict(
+                title="Constituencies won",
+                gridcolor="rgba(255,255,255,0.08)",
+                zerolinecolor="rgba(255,255,255,0.10)",
+            ),
+            yaxis_title="Party",
         )
+        apply_dark_layout(fig_overall, "Overall: constituencies won by party", height=380)
+
 
         # Yearly stacked bar
         years_sorted = sorted([int(y) for y in yearly.keys()], reverse=True)
         parties = sorted(list(overall.keys()))
 
+        # better ordering: show PAP/WP first in legend, then others alphabetically
+        parties_sorted = []
+        for p in ["PAP", "WP"]:
+            if p in parties:
+                parties_sorted.append(p)
+        for p in parties:
+            if p not in parties_sorted:
+                parties_sorted.append(p)
+
+        used = set()
         fig_yearly = go.Figure()
-        for party in parties:
+
+        for party in parties_sorted:
             y_counts = []
             for y in years_sorted:
                 y_counts.append(int(yearly.get(y, {}).get(party, 0)))
+
+            color = get_party_color(party, used)
 
             fig_yearly.add_trace(
                 go.Bar(
                     name=party,
                     x=[str(y) for y in years_sorted],
                     y=y_counts,
+                    marker=dict(color=color),
+                    hovertemplate=f"{party}<br>Year: %{{x}}<br>Count: %{{y}}<extra></extra>",
                 )
             )
 
         fig_yearly.update_layout(
             barmode="stack",
-            title="Year-by-year: constituencies won (stacked)",
-            xaxis_title="Year",
-            yaxis_title="Count",
-            margin=dict(l=20, r=20, t=50, b=30),
-            height=420,
+            xaxis=dict(
+                title="Year",
+                gridcolor="rgba(255,255,255,0.08)",
+                zerolinecolor="rgba(255,255,255,0.10)",
+            ),
+            yaxis=dict(
+                title="Constituencies won",
+                gridcolor="rgba(255,255,255,0.08)",
+                zerolinecolor="rgba(255,255,255,0.10)",
+            ),
         )
+        apply_dark_layout(fig_yearly, "Year-by-year: constituencies won (stacked)", height=420)
 
         return fig_overall, fig_yearly
 
