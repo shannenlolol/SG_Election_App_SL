@@ -4,6 +4,8 @@ from flask import request
 import os
 import requests
 import plotly.graph_objects as go
+from dash import callback_context
+from dash.exceptions import PreventUpdate
 
 PARTY_COLOR_MAP = {
     "PAP": "#E74C3C",  # red
@@ -446,57 +448,85 @@ def render_search_tab():
             ),
 
 
-            html.Div(
+                        html.Div(
                 [
-                    dash_table.DataTable(
-                        id="tbl",
-                        columns=[
-                            {"name": "Year", "id": "year"},
-                            {"name": "Constituency", "id": "constituency"},
-                            {"name": "Constituency Type", "id": "constituency_type"},
-                            {"name": "Winner", "id": "winner_party"},
-                            {"name": "Margin", "id": "margin_pct"},
-                        ],
-                        css=[
-                            {
-                                "selector": ".dash-spreadsheet-container th:hover",
-                                "rule": "background-color: rgba(15, 10, 49, 0.38) !important; color: rgba(255,255,255,0.85) !important;",
-                            },
-                        ],
-                        tooltip_delay=0,
-                        tooltip_duration=None,
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    dash_table.DataTable(
+                                        id="tbl",
+                                        columns=[
+                                            {"name": "Year", "id": "year"},
+                                            {"name": "Constituency", "id": "constituency"},
+                                            {"name": "Constituency Type", "id": "constituency_type"},
+                                            {"name": "Winner", "id": "winner_party"},
+                                            {"name": "Margin", "id": "margin_pct"},
+                                        ],
+                                        css=[
+                                            {
+                                                "selector": ".dash-spreadsheet-container th:hover",
+                                                "rule": "background-color: rgba(15, 10, 49, 0.38) !important; color: rgba(255,255,255,0.85) !important;",
+                                            },
+                                        ],
+                                        tooltip_delay=0,
+                                        tooltip_duration=None,
+                                        data=[],
+                                        sort_action="native",
+                                        page_size=14,
+                                        style_table={"overflowX": "auto"},
+                                        style_header={
+                                            "fontWeight": 700,
+                                            "fontSize": "12px",
+                                            "backgroundColor": "rgba(15, 10, 49, 0.38)",
+                                            "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                            "color": "rgba(255,255,255,0.85)",
+                                        },
+                                        style_cell={
+                                            "backgroundColor": "rgba(50, 49, 49, 0.78)",
+                                            "borderBottom": "1px solid rgba(255,255,255,0.06)",
+                                            "color": "rgba(255,255,255,0.88)",
+                                            "padding": "9px 10px",
+                                            "fontSize": "12px",
+                                            "whiteSpace": "normal",
+                                            "height": "auto",
+                                        },
 
-                        data=[],
-                        sort_action="native",
-                        page_size=14,
-                        style_table={"overflowX": "auto"},
-                        style_header={
-                            "fontWeight": 700,
-                            "backgroundColor": "rgba(15, 10, 49, 0.38)",
-                            "borderBottom": "1px solid rgba(255,255,255,0.10)",
-                            "color": "rgba(255,255,255,0.85)",
-                        },
-                        style_cell={
-                            "backgroundColor": "rgba(50, 49, 49, 0.78)",
-                            "borderBottom": "1px solid rgba(255,255,255,0.06)",
-                            "color": "rgba(255,255,255,0.88)",
-                            "padding": "12px 12px",
-                            "fontSize": "13px",
-                            "whiteSpace": "normal",
-                            "height": "auto",
-                        },
-                        style_data_conditional=[],
-                        tooltip_data=[],
-                    )
+                                        style_data_conditional=[],
+                                        tooltip_data=[],
+                                    )
+                                ],
+                                className="panel table-panel",
+                            )
+                        ],
+                        id="left-pane",
+                        className="split-left",
+                    ),
+                    html.Div(
+                        [
+                            html.Button(
+                                "Close",
+                                id="btn-close-details",
+                                n_clicks=0,
+                                className="detail-close",
+                                type="button",
+                            ),
+                            html.Div(
+                                id="details-panel",
+                                className="panel details-panel",
+                                style={"display": "none"},
+                            ),
+                        ],
+                        id="right-pane",
+                        className="split-right",
+                        style={"display": "none"},
+                    ),
+
                 ],
-                className="panel table-panel",
+                id="split-wrap",
+                className="split-wrap",
             ),
 
-            html.Div(
-                id="details-panel",
-                className="panel details-panel",
-                style={"display": "none"},
-            ),
         ]
     )
 
@@ -534,17 +564,13 @@ def render_summary_tab():
         ]
     )
 
-@app.callback(
-    Output("store-active-row", "data"),
-    Input("tbl", "active_cell"),
+app.validation_layout = html.Div(
+    [
+        app.layout,
+        render_search_tab(),
+        render_summary_tab(),
+    ]
 )
-def store_active_row(active_cell):
-    if not active_cell:
-        return None
-    row_index = active_cell.get("row")
-    if row_index is None:
-        return None
-    return int(row_index)
 
 @app.callback(
     Output("tbl", "style_data_conditional"),
@@ -596,6 +622,80 @@ def switch_tab(tab_value):
     if tab_value == "tab-summary":
         return render_summary_tab()
     return render_search_tab()
+
+@app.callback(
+    Output("store-expanded", "data"),
+    Output("store-active-row", "data"),
+    Input("tbl", "active_cell"),
+    Input("btn-close-details", "n_clicks"),
+    Input("boot", "n_intervals"),
+    State("tbl", "data"),
+    State("store-expanded", "data"),
+    prevent_initial_call=False,
+)
+def manage_expansion(active_cell, close_clicks, boot_intervals, table_data, expanded_state):
+    ctx = callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    # 1) On boot: always start collapsed
+    if trigger_id == "boot":
+        return None, None
+
+    # 2) Close button: collapse + clear active row
+    if trigger_id == "btn-close-details":
+        if not close_clicks:
+            raise PreventUpdate
+        return None, None
+
+    # 3) Table click: expand/collapse based on clicked row
+    if trigger_id == "tbl":
+        # When layout changes, Dash sometimes emits active_cell=None briefly.
+        # Ignore that (do NOT collapse).
+        if not active_cell:
+            raise PreventUpdate
+
+        if not table_data:
+            raise PreventUpdate
+
+        row_index = active_cell.get("row")
+        if row_index is None:
+            raise PreventUpdate
+
+        if row_index < 0 or row_index >= len(table_data):
+            raise PreventUpdate
+
+        clicked = table_data[row_index]
+        clicked_key = f"{clicked.get('year')}|{clicked.get('constituency')}"
+
+        # Click same expanded row -> collapse
+        if expanded_state and expanded_state.get("key") == clicked_key:
+            return None, None
+
+        # Expand new row
+        return (
+            {
+                "key": clicked_key,
+                "year": clicked.get("year"),
+                "constituency": clicked.get("constituency"),
+            },
+            int(row_index),
+        )
+
+    raise PreventUpdate
+
+@app.callback(
+    Output("right-pane", "style"),
+    Output("left-pane", "style"),
+    Input("store-expanded", "data"),
+)
+def toggle_split_layout(expanded_state):
+    if not expanded_state:
+        return {"display": "none"}, {"flex": "1 1 100%"}  # full width
+
+    return {"display": "block", "flex": "1 1 50%"}, {"flex": "1 1 50%"}  # 50/50
 
 
 # ----------------------------
@@ -767,39 +867,6 @@ def update_table(years, winners, types, constituencies, options_data):
         return "—", "—", str(len(years) if years else "All"), [], []
 
 
-# ----------------------------
-# Row click expand / collapse
-# ----------------------------
-@app.callback(
-    Output("store-expanded", "data"),
-    Input("tbl", "active_cell"),
-    State("tbl", "data"),
-    State("store-expanded", "data"),
-    prevent_initial_call=True,
-)
-def toggle_expand(active_cell, table_data, expanded_state):
-    if not active_cell or not table_data:
-        return None
-
-    row_index = active_cell.get("row")
-    if row_index is None:
-        return None
-    if row_index < 0 or row_index >= len(table_data):
-        return None
-
-    clicked = table_data[row_index]
-    clicked_key = f"{clicked.get('year')}|{clicked.get('constituency')}"
-
-    if expanded_state and expanded_state.get("key") == clicked_key:
-        return None
-
-    return {
-        "key": clicked_key,
-        "year": clicked.get("year"),
-        "constituency": clicked.get("constituency"),
-    }
-
-
 @app.callback(
     Output("details-panel", "children"),
     Output("details-panel", "style"),
@@ -835,33 +902,30 @@ def render_details(expanded_state):
                     className="detail-title",
                 ),
             ],
-            className="detail-header",
+            className="detail-header detail-header--with-close",
         )
+
 
         content = html.Div(
             [
                 html.Div(
                     [
-                        html.Div(
-                            [
-                                dcc.Graph(
-                                    figure=vote_fig,
-                                    config={"displayModeBar": False},
-                                )
-                            ],
-                            className="detail-card",
-                        ),
-                        html.Div(
-                            [
-                                dcc.Graph(
-                                    figure=elector_fig,
-                                    config={"displayModeBar": False},
-                                )
-                            ],
-                            className="detail-card",
-                        ),
+                        dcc.Graph(
+                            figure=vote_fig,
+                            config={"displayModeBar": False},
+                        )
                     ],
-                    className="detail-row",
+                    className="detail-card",
+                ),
+
+                html.Div(
+                    [
+                        dcc.Graph(
+                            figure=elector_fig,
+                            config={"displayModeBar": False},
+                        )
+                    ],
+                    className="detail-card",
                 ),
 
                 html.Div(
