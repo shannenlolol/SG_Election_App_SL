@@ -66,7 +66,7 @@ html,body{
   background: transparent !important;
   border: 0 !important;
   color: rgba(255,255,255,0.70) !important;
-  padding: 10px 12px !important;
+  padding: 10px 2px !important;
   font-size: 13px !important;
   font-weight: 650 !important;
   border-bottom: 1px solid rgba(255,255,255,0.10) !important;
@@ -111,10 +111,10 @@ html,body{
 }
 
 /* give Year/Winner/Type smaller widths, Constituency bigger */
-.filters .field:nth-child(1){ flex: 0.9 1 0; }
-.filters .field:nth-child(2){ flex: 1.1 1 0; }
-.filters .field:nth-child(3){ flex: 0.9 1 0; }
-.filters .field:nth-child(4){ flex: 1.6 1 0; }
+.filters .field:nth-child(1){ flex: 0.4 1 0; }
+.filters .field:nth-child(2){ flex: 1.4 1 0; }
+.filters .field:nth-child(3){ flex: 0.6 1 0; }
+.filters .field:nth-child(4){ flex: 1.2 1 0; }
 
 /* slightly smaller labels so toolbar stays short */
 .label{
@@ -572,4 +572,114 @@ html,body{
   display:flex;
   flex-direction:column;
   gap:12px;
+}
+/* ---------- Split layout ---------- */
+.split-wrap{
+  display:flex;
+  gap: 14px;
+  align-items: stretch;
+  margin-top: 10px;
+}
+
+.split-left,
+.split-right{
+  min-width: 0; /* IMPORTANT: prevents flex children from forcing width */
+}
+
+/* ---------- Close button: X top-right ---------- */
+.split-right{
+  position: relative;
+}
+
+.detail-close-x{
+  position:absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.90);
+  font-size: 20px;
+  line-height: 30px;
+  cursor: pointer;
+  z-index: 20;
+}
+
+.detail-close-x:hover{
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.22);
+}
+
+/* ---------- KPI line margin (Showing All...) ---------- */
+.kpi-line{
+  margin: 10px 8px 12px 8px;
+}
+
+/* ---------- Table padding / comfortable margin ---------- */
+.table-shell{
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+
+/* ---------- Filters: add spacing + control widths ---------- */
+.filters{
+  display:flex;
+  gap: 14px;           /* (6) spacing between inputs */
+  flex-wrap: wrap;
+  padding: 12px;
+}
+
+.field{
+  min-width: 180px;
+  flex: 1 1 220px;
+}
+
+/* (5) make Year + Constituency narrower, Winner wider */
+.field--year{ flex: 0 1 160px; min-width: 140px; }
+.field--const{ flex: 0 1 220px; min-width: 200px; }
+.field--winner{ flex: 1 1 360px; min-width: 320px; }
+
+/* Apply those classes by setting className on the relevant field divs:
+   Year -> "field field--year"
+   Winner -> "field field--winner"
+   Constituency -> "field field--const"
+*/
+
+/* ---------- Make dropdowns + options smaller (4) ---------- */
+.control .Select-control{
+  min-height: 34px !important;
+  height: 34px !important;
+}
+
+.control .Select-placeholder,
+.control .Select-value-label{
+  font-size: 12px !important;
+  line-height: 34px !important;
+}
+
+.control .Select-input{
+  height: 34px !important;
+}
+
+.control .Select-menu-outer{
+  font-size: 12px !important;
+}
+
+.control .Select-option{
+  padding: 6px 10px !important;
+  line-height: 16px !important;
+}
+
+/* Reduce multi-value chip size a bit too */
+.control .Select--multi .Select-value{
+  font-size: 11px !important;
+  line-height: 18px !important;
+}
+
+.control .Select-menu-outer{
+  z-index: 50 !important;
 }

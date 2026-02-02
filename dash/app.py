@@ -329,39 +329,6 @@ def add_headers(resp):
         del resp.headers["X-Frame-Options"]
     return resp
 
-
-# ----------------------------
-# Layout
-# ----------------------------
-app.layout = html.Div(
-    [
-        dcc.Interval(id="boot", interval=80, n_intervals=0, max_intervals=1),
-
-        html.Div(id="auth-warning", className="alert", style={"display": "none"}),
-
-        dcc.Store(id="store-options", data=None),
-        dcc.Store(id="store-expanded", data=None),
-        dcc.Store(id="store-active-row", data=None),
-
-        dcc.Tabs(
-            id="tabs",
-            value="tab-search",
-            children=[
-                dcc.Tab(label="Search", value="tab-search"),
-                dcc.Tab(label="Summary", value="tab-summary"),
-            ],
-            className="tabs",
-        ),
-
-        html.Div(
-            id="tab-content",
-            className="tab-content",
-        ),
-    ],
-    className="page",
-)
-
-
 def render_search_tab():
     return html.Div(
         [
@@ -379,7 +346,7 @@ def render_search_tab():
                                 className="control",
                             ),
                         ],
-                        className="field",
+                        className="field field--year",
                     ),
                     html.Div(
                         [
@@ -393,7 +360,7 @@ def render_search_tab():
                                 className="control",
                             ),
                         ],
-                        className="field",
+                        className="field field--winner",
                     ),
                     html.Div(
                         [
@@ -404,7 +371,7 @@ def render_search_tab():
                                     {"label": "GRC", "value": "GRC"},
                                     {"label": "SMC", "value": "SMC"},
                                 ],
-                                value=["GRC", "SMC"],
+                                value=[],
                                 # value=[],
                                 multi=True,
                                 placeholder="All types",
@@ -427,7 +394,7 @@ def render_search_tab():
                                 className="control",
                             ),
                         ],
-                        className="field",
+                        className="field field--const",
                     ),
 
                 ],
@@ -448,84 +415,91 @@ def render_search_tab():
             ),
 
 
-                        html.Div(
-                [
-                    html.Div(
-                        [
-                            html.Div(
-                                [
-                                    dash_table.DataTable(
-                                        id="tbl",
-                                        columns=[
-                                            {"name": "Year", "id": "year"},
-                                            {"name": "Constituency", "id": "constituency"},
-                                            {"name": "Constituency Type", "id": "constituency_type"},
-                                            {"name": "Winner", "id": "winner_party"},
-                                            {"name": "Margin", "id": "margin_pct"},
-                                        ],
-                                        css=[
-                                            {
-                                                "selector": ".dash-spreadsheet-container th:hover",
-                                                "rule": "background-color: rgba(15, 10, 49, 0.38) !important; color: rgba(255,255,255,0.85) !important;",
-                                            },
-                                        ],
-                                        tooltip_delay=0,
-                                        tooltip_duration=None,
-                                        data=[],
-                                        sort_action="native",
-                                        page_size=14,
-                                        style_table={"overflowX": "auto"},
-                                        style_header={
-                                            "fontWeight": 700,
-                                            "fontSize": "12px",
-                                            "backgroundColor": "rgba(15, 10, 49, 0.38)",
-                                            "borderBottom": "1px solid rgba(255,255,255,0.10)",
-                                            "color": "rgba(255,255,255,0.85)",
-                                        },
-                                        style_cell={
-                                            "backgroundColor": "rgba(50, 49, 49, 0.78)",
-                                            "borderBottom": "1px solid rgba(255,255,255,0.06)",
-                                            "color": "rgba(255,255,255,0.88)",
-                                            "padding": "9px 10px",
-                                            "fontSize": "12px",
-                                            "whiteSpace": "normal",
-                                            "height": "auto",
-                                        },
+html.Div(
+    [
+        html.Div(
+            [
+                # a padding shell so the table isn't hugging borders
+                html.Div(
+                    [
+                        dash_table.DataTable(
+                            id="tbl",
+                            columns=[
+                                {"name": "Year", "id": "year"},
+                                {"name": "Constituency", "id": "constituency"},
+                                {"name": "Constituency Type", "id": "constituency_type"},
+                                {"name": "Winner", "id": "winner_party"},
+                                {"name": "Margin", "id": "margin_pct"},
+                            ],
+                            css=[
+                                {
+                                    "selector": ".dash-spreadsheet-container th:hover",
+                                    "rule": "background-color: rgba(15, 10, 49, 0.38) !important; color: rgba(255,255,255,0.85) !important;",
+                                },
+                            ],
+                            tooltip_delay=0,
+                            tooltip_duration=None,
+                            data=[],
+                            sort_action="native",
+                            page_size=14,
+                            style_table={"overflowX": "auto"},
+                            style_header={
+                                "fontWeight": 700,
+                                "fontSize": "12px",
+                                "backgroundColor": "rgba(15, 10, 49, 0.38)",
+                                "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                "color": "rgba(255,255,255,0.85)",
+                            },
+                            style_cell={
+                                "backgroundColor": "rgba(50, 49, 49, 0.78)",
+                                "borderBottom": "1px solid rgba(255,255,255,0.06)",
+                                "color": "rgba(255,255,255,0.88)",
+                                "padding": "9px 10px",
+                                "fontSize": "12px",
+                                "whiteSpace": "normal",
+                                "height": "auto",
+                            },
+                            style_data_conditional=[],
+                            tooltip_data=[],
+                        )
+                    ],
+                    className="table-shell",
+                )
+            ],
+            id="left-pane",
+            className="split-left",
+            # IMPORTANT: default to full width on initial load
+            style={"flex": "1 1 100%", "minWidth": "0"},
+        ),
 
-                                        style_data_conditional=[],
-                                        tooltip_data=[],
-                                    )
-                                ],
-                                className="panel table-panel",
-                            )
-                        ],
-                        id="left-pane",
-                        className="split-left",
-                    ),
-                    html.Div(
-                        [
-                            html.Button(
-                                "Close",
-                                id="btn-close-details",
-                                n_clicks=0,
-                                className="detail-close",
-                                type="button",
-                            ),
-                            html.Div(
-                                id="details-panel",
-                                className="panel details-panel",
-                                style={"display": "none"},
-                            ),
-                        ],
-                        id="right-pane",
-                        className="split-right",
-                        style={"display": "none"},
-                    ),
+        html.Div(
+            [
+                # Close button exists in the layout always (prevents "nonexistent object" errors)
+                html.Button(
+    "×",
+    id="btn-close-details",
+    n_clicks=0,
+    className="detail-close-x",
+    type="button",
+    **{"aria-label": "Close details"},
+),
 
-                ],
-                id="split-wrap",
-                className="split-wrap",
-            ),
+
+                html.Div(
+                    id="details-panel",
+                    className="panel details-panel",
+                    style={"display": "none"},
+                ),
+            ],
+            id="right-pane",
+            className="split-right",
+            style={"display": "none", "flex": "1 1 50%", "minWidth": "0"},
+        ),
+    ],
+    id="split-wrap",
+    className="split-wrap",
+),
+
 
         ]
     )
@@ -563,6 +537,41 @@ def render_summary_tab():
             ),
         ]
     )
+
+# ----------------------------
+# Layout
+# ----------------------------
+app.layout = html.Div(
+    [
+        dcc.Interval(id="boot", interval=80, n_intervals=0, max_intervals=1),
+
+        html.Div(id="auth-warning", className="alert", style={"display": "none"}),
+
+        dcc.Store(id="store-options", data=None),
+        dcc.Store(id="store-expanded", data=None),
+        dcc.Store(id="store-active-row", data=None),
+
+        dcc.Tabs(
+            id="tabs",
+            value="tab-search",
+            children=[
+                dcc.Tab(label="Search", value="tab-search"),
+                dcc.Tab(label="Summary", value="tab-summary"),
+            ],
+            className="tabs",
+        ),
+
+        html.Div(
+            id="tab-content",
+            className="tab-content",
+            children=render_search_tab(),  # IMPORTANT: so tbl exists on initial load
+        ),
+
+    ],
+    className="page",
+)
+
+
 
 app.validation_layout = html.Div(
     [
@@ -693,10 +702,15 @@ def manage_expansion(active_cell, close_clicks, boot_intervals, table_data, expa
 )
 def toggle_split_layout(expanded_state):
     if not expanded_state:
-        return {"display": "none"}, {"flex": "1 1 100%"}  # full width
+        return (
+            {"display": "none", "flex": "1 1 0%", "minWidth": "0"},
+            {"flex": "1 1 100%", "width": "100%", "minWidth": "0"},
+        )
 
-    return {"display": "block", "flex": "1 1 50%"}, {"flex": "1 1 50%"}  # 50/50
-
+    return (
+        {"display": "block", "flex": "1 1 50%", "width": "50%", "minWidth": "0"},
+        {"flex": "1 1 50%", "width": "50%", "minWidth": "0"},
+    )
 
 # ----------------------------
 # Boot: load options
