@@ -134,7 +134,7 @@ def build_vote_bar(parties):
     fig.update_layout(
         title="Votes by party",
         margin=dict(l=26, r=26, t=56, b=46),
-        height=320,
+        height=200,
 
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
@@ -228,7 +228,7 @@ def build_elector_pie(elector):
             font=dict(size=16, color="rgba(255,255,255,0.85)", weight=700),
         ),
 
-        height=320,
+        height=200,
         margin=dict(l=28, r=140, t=60, b=28),
 
         paper_bgcolor="rgba(0,0,0,0)",
@@ -508,21 +508,6 @@ html.Div(
 def render_summary_tab():
     return html.Div(
         [
-            html.Div(
-                [
-                    # html.Div(
-                    #     [
-                    #         html.Div("Summary", className="title"),
-                    #         html.Div(
-                    #             "Not grouped by constituency. Based on current dataset.",
-                    #             className="subtitle",
-                    #         ),
-                    #     ],
-                    #     className="header-block",
-                    # )
-                ],
-                className="panel",
-            ),
             html.Div(
                 [
                     dcc.Graph(id="g-overall-winners", config={"displayModeBar": False}),
@@ -1111,7 +1096,7 @@ def build_summary(tab_value):
                 zerolinecolor="rgba(255,255,255,0.10)",
             ),
         )
-        apply_dark_layout(fig_yearly, "Year-by-year: constituencies won (stacked)", height=420)
+        apply_dark_layout(fig_yearly, "Year-by-year: constituencies won", height=420)
 
         return fig_overall, fig_yearly
 

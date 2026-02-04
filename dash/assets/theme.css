@@ -237,7 +237,7 @@ html,body{
 
 /* Make the table feel like the example */
 .dash-table-container .dash-spreadsheet-container{
-  border-radius: 14px;
+  border-radius: 10px;
 }
 
 /* Mobile */
@@ -403,7 +403,6 @@ html,body{
 }
 
 .details-panel{
-  margin-top: 14px;
   padding: 14px;
 }
 
@@ -621,7 +620,7 @@ html,body{
 .table-shell{
   padding: 10px;
   border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.10);
+  /* border: 1px solid rgba(255,255,255,0.10); */
   background: rgba(255,255,255,0.03);
 }
 
