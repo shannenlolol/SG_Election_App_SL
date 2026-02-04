@@ -2,20 +2,28 @@ import "dotenv/config";
 import mysql from "mysql2/promise";
 
 // 1. List of Political Parties
-// abbreviation, political_party
 const DATASET_PARTIES = "d_ef163fd9ebc3c2f21032c29da3bd3f77";
 
 // 2. Registered Electors, Rejected Votes and Spoilt Ballots
-// year, constituency, no_of_registered_electors, no_of_rejected_votes, no_of_spoilt_ballot_papers
 const DATASET_ELECTORS = "d_fdfb854fcb7428b29734d2e0c0674220";
 
 // 3. Election Dates
-// year, nomination_day, polling_day
 const DATASET_DATES = "d_00d89e5d100a612e36432d91493785bd";
 
 // 4. Results by Candidate
-// year, constituency, constituency_type, candidates, party, vote_count, vote_percentage
 const DATASET_RESULTS = "d_581a30bee57fa7d8383d6bc94739ad00";
+
+// 5. Boundary GeoJSON datasets by year (you already have this mapping file)
+const BOUNDARY_DATASET_BY_YEAR = {
+  2006: "d_7fb48bf0b7b7c8deeccfb2b40d120e08",
+  2011: "d_305b03ed3c477aba648eeddaea2d4279",
+  2015: "d_1dea85025d48bc75ed566eb2696b7e0f",
+  2020: "d_6077aa5ab73d447b32f451ea224221b6",
+  2025: "d_7ddf956dfc1c59080bf95bba1c58a5d2",
+};
+
+const API_OPEN_BASE = "https://api-open.data.gov.sg/v1/public/api/datasets";
+const API_KEY = process.env.DGS_API_KEY || "";
 
 function sleep(ms) {
   return new Promise(function (resolve) {
@@ -51,7 +59,10 @@ async function fetchJsonWithRetry(url, options) {
       continue;
     }
 
-    throw new Error(`HTTP ${res.status} for ${url}`);
+    const text = await res.text().catch(function () {
+      return "";
+    });
+    throw new Error(`HTTP ${res.status} for ${url}. ${text.slice(0, 200)}`);
   }
 
   throw new Error(`HTTP 429 persisted after retries for ${url}`);
@@ -127,13 +138,7 @@ async function getTableColumns(db, tableName) {
 }
 
 function chooseElectorColumnMap(columns) {
-  // Prefer the API-aligned names if your table has them.
-  // Otherwise fall back to the older names your current script used.
-  const map = {
-    registered: null,
-    rejected: null,
-    spoilt: null,
-  };
+  const map = { registered: null, rejected: null, spoilt: null };
 
   if (columns.has("no_of_registered_electors")) {
     map.registered = "no_of_registered_electors";
@@ -174,6 +179,154 @@ function choosePartiesColumnMap(columns) {
   return map;
 }
 
+// -----------------------------
+// Geo helpers for boundary sync
+// -----------------------------
+function upperTrim(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function getBoundaryName(properties) {
+  if (properties && properties.ED_DESC_FU) return String(properties.ED_DESC_FU);
+  if (properties && properties.ED_DESC) return String(properties.ED_DESC);
+  if (properties && properties.Name) return String(properties.Name);
+  return "Unknown";
+}
+
+function inferBoundaryType(name) {
+  const n = upperTrim(name);
+  if (n.endsWith(" SMC")) return "SMC";
+  if (n.endsWith(" GRC")) return "GRC";
+  return null;
+}
+
+function bboxFromGeometry(geometry) {
+  if (!geometry || !geometry.type || !geometry.coordinates) {
+    return null;
+  }
+
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+
+  function walkCoords(coords) {
+    if (!Array.isArray(coords)) return;
+
+    // coordinate pair [lng, lat]
+    if (
+      coords.length === 2 &&
+      typeof coords[0] === "number" &&
+      typeof coords[1] === "number"
+    ) {
+      const lng = coords[0];
+      const lat = coords[1];
+
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+
+      return;
+    }
+
+    for (const c of coords) {
+      walkCoords(c);
+    }
+  }
+
+  walkCoords(geometry.coordinates);
+
+  if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) {
+    return null;
+  }
+
+  return { minLng, minLat, maxLng, maxLat };
+}
+
+async function pollDownloadUrl(datasetId) {
+  const url = `${API_OPEN_BASE}/${datasetId}/poll-download`;
+
+  const headers = { Accept: "application/json" };
+  if (API_KEY) {
+    headers["x-api-key"] = API_KEY;
+  }
+
+  const json = await fetchJsonWithRetry(url, { method: "GET", headers });
+
+  const signedUrl = json && json.data && json.data.url ? String(json.data.url) : "";
+  if (!signedUrl) {
+    throw new Error(`poll-download returned no url for dataset ${datasetId}`);
+  }
+
+  return signedUrl;
+}
+
+async function fetchGeoJsonFromDataset(datasetId) {
+  const signedUrl = await pollDownloadUrl(datasetId);
+  const geo = await fetchJsonWithRetry(signedUrl, { method: "GET" });
+
+  if (!geo || geo.type !== "FeatureCollection" || !Array.isArray(geo.features)) {
+    throw new Error(`Invalid GeoJSON downloaded for dataset ${datasetId}`);
+  }
+
+  return geo;
+}
+
+async function upsertBoundaries(db, year, datasetId, geojson) {
+  const insertBoundariesSql = `
+    INSERT INTO ge_boundaries (year, source_dataset_id, geojson, last_synced_at)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      source_dataset_id = VALUES(source_dataset_id),
+      geojson = VALUES(geojson),
+      last_synced_at = CURRENT_TIMESTAMP
+  `;
+
+  await db.execute(insertBoundariesSql, [
+    year,
+    datasetId,
+    JSON.stringify(geojson),
+  ]);
+
+  // Optional: feature table (fast runtime filtering)
+  // Clear and repopulate for that year to avoid stale features
+  await db.execute("DELETE FROM ge_boundary_features WHERE year = ?", [year]);
+
+  const insertFeatureSql = `
+    INSERT INTO ge_boundary_features
+      (year, constituency, constituency_type, properties, geometry, min_lng, min_lat, max_lng, max_lat, last_synced_at)
+    VALUES
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `;
+
+  for (const f of geojson.features) {
+    const props = f && f.properties ? f.properties : {};
+    const geom = f && f.geometry ? f.geometry : null;
+
+    if (!geom) continue;
+
+    const constituency = String(getBoundaryName(props) || "").trim();
+    if (!constituency) continue;
+
+    const constituencyType = inferBoundaryType(constituency);
+
+    const bb = bboxFromGeometry(geom);
+
+    await db.execute(insertFeatureSql, [
+      year,
+      constituency,
+      constituencyType,
+      props ? JSON.stringify(props) : null,
+      JSON.stringify(geom),
+      bb ? bb.minLng : null,
+      bb ? bb.minLat : null,
+      bb ? bb.maxLng : null,
+      bb ? bb.maxLat : null,
+    ]);
+  }
+}
+
 async function main() {
   const db = await mysql.createConnection({
     host: process.env.DB_HOST || "127.0.0.1",
@@ -190,21 +343,22 @@ async function main() {
   const electorMap = chooseElectorColumnMap(electorCols);
   const partiesMap = choosePartiesColumnMap(partiesCols);
 
-  if (!electorMap.registered || !electorMap.rejected || !electorMap.spoilt) {
-    console.log(
-      "Warning: Could not fully resolve ge_elector_stats column mapping:",
-      electorMap,
-    );
+  // 0) GeoJSON boundaries (NEW)
+  console.log("Fetching + upserting GeoJSON boundaries...");
+  for (const yearStr of Object.keys(BOUNDARY_DATASET_BY_YEAR)) {
+    const year = Number(yearStr);
+    const datasetId = BOUNDARY_DATASET_BY_YEAR[yearStr];
+
+    if (!Number.isFinite(year) || !datasetId) {
+      continue;
+    }
+
+    console.log(`  - Year ${year}: dataset ${datasetId}`);
+    const geojson = await fetchGeoJsonFromDataset(datasetId);
+    await upsertBoundaries(db, year, datasetId, geojson);
   }
 
-  if (!partiesMap.abbr || !partiesMap.name) {
-    console.log(
-      "Warning: Could not fully resolve political_parties column mapping:",
-      partiesMap,
-    );
-  }
-
-  // 1) Results by candidate (API headers are snake_case as per your comment)
+  // 1) Results by candidate
   console.log("Fetching results by candidate...");
   const results = await fetchAllRows(DATASET_RESULTS);
 
@@ -244,7 +398,7 @@ async function main() {
     ]);
   }
 
-  // 2) Elector stats (API headers are snake_case as per your comment)
+  // 2) Elector stats
   console.log("Fetching elector stats...");
   const electors = await fetchAllRows(DATASET_ELECTORS);
 
@@ -284,7 +438,7 @@ async function main() {
     ]);
   }
 
-  // 3) Election dates (API headers are snake_case as per your comment)
+  // 3) Election dates
   console.log("Fetching election dates...");
   const dates = await fetchAllRows(DATASET_DATES);
 
@@ -309,7 +463,7 @@ async function main() {
     await db.execute(insertDatesSql, [year, nomination, polling]);
   }
 
-  // 4) Parties list (API headers are snake_case as per your comment)
+  // 4) Parties list
   console.log("Fetching parties list...");
   const parties = await fetchAllRows(DATASET_PARTIES);
 
@@ -335,13 +489,11 @@ async function main() {
     await db.execute(insertPartiesSql, [abbr, fullName]);
   }
 
-  // ---- Derived summary tables for dashboard (winner + margin + turnout) ----
+  // ---- Derived summary tables for dashboard ----
   console.log("Refreshing derived summary tables...");
   await db.query("DELETE FROM ge_top_parties");
   await db.query("DELETE FROM ge_summary");
 
-  // Turnout uses: valid votes + rejected + spoilt, divided by registered.
-  // vote_percentage in dataset is a fraction (0..1), so margin stored as percentage points here.
   const refreshSql = `
   INSERT INTO ge_summary (year, constituency, constituency_type, winner_party, margin_pct, turnout_pct)
   SELECT
@@ -372,7 +524,6 @@ async function main() {
         ',', 1
       ) AS winner_party,
 
-      -- shares computed off party vote totals
       MAX(x.party_votes / NULLIF(x.total_votes, 0)) AS winner_share,
 
       CAST(
@@ -399,7 +550,7 @@ async function main() {
   ) s
   LEFT JOIN ge_elector_stats e
     ON e.year = s.year AND e.constituency = s.constituency
-`;
+  `;
   await db.query(refreshSql);
 
   const topSql = `
@@ -422,7 +573,7 @@ async function main() {
     GROUP BY r.year, r.constituency, r.party
   ) x
   WHERE x.rank_no <= 3
-`;
+  `;
   await db.query(topSql);
 
   await db.end();

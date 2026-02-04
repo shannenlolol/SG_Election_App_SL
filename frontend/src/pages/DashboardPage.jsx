@@ -2,7 +2,6 @@ import React from "react";
 import { useEffect } from "react";
 
 const DASH_ORIGIN = "http://localhost:4000"; // change if needed
-const DASH_URL = "http://localhost:4000/dash/"; // your iframe src
 
 export default function DashboardPage() {
   const iframeRef = React.useRef(null);
@@ -37,40 +36,8 @@ export default function DashboardPage() {
     // Ask Dash to send height (handled by iframe_height.js)
     iframe.contentWindow.postMessage({ type: "DASH_HEIGHT_REQUEST" }, DASH_ORIGIN);
   }
-
-//   return (
-//     <div style={{ width: "100%" }}>
-//       <iframe
-//         ref={iframeRef}
-//         src={DASH_URL}
-//         title="Dashboard"
-//         style={{
-//           width: "100%",
-//           height: `${iframeHeight}px`,
-//           border: "0",
-//           display: "block",
-//         }}
-//         onLoad={() => {
-//           // Dash might not be ready immediately; request multiple times
-//           requestDashHeight();
-//           setTimeout(requestDashHeight, 200);
-//           setTimeout(requestDashHeight, 800);
-//           setTimeout(requestDashHeight, 1500);
-//         }}
-//       />
-//     </div>
-//   );
-// }
-
   return (
     <div className="page-shell">
-      {/* <div className="page-header">
-        <div className="page-title">Dashboard</div>
-        <div className="page-subtitle">
-          Search and compare outcomes across years and constituencies.
-        </div>
-      </div> */}
-
       <div className="card-surface">
         <iframe
           ref={iframeRef}

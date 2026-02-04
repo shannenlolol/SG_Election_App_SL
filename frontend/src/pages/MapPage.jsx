@@ -1,13 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
 
-import {
-  BOUNDARY_DATASET_BY_YEAR,
-  RESULTS_BY_CANDIDATE_DATASET_ID,
-} from "../config/electionDatasets";
-import { fetchGeoJsonFromDataset, fetchTextFromDataset } from "../utils/dataGov";
-import { parseResultsCsv, buildSummaryForYear, listParties } from "../utils/results";
-
 function upperTrim(value) {
   return String(value || "").trim().toUpperCase();
 }
@@ -28,18 +21,9 @@ function getBoundaryType(properties) {
 }
 
 export default function MapPage() {
-  const years = useMemo(function () {
-    return Object.keys(BOUNDARY_DATASET_BY_YEAR)
-      .map(function (y) {
-        return Number(y);
-      })
-      .filter(function (y) {
-        return Number.isFinite(y);
-      })
-      .sort(function (a, b) {
-        return b - a;
-      });
-  }, []);
+const years = useMemo(function () {
+  return [2025, 2020, 2015, 2011, 2006];
+}, []);
 
   const [year, setYear] = useState(years.length > 0 ? years[0] : 2025);
   const [typeFilter, setTypeFilter] = useState("ALL");
@@ -62,55 +46,81 @@ export default function MapPage() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [mapInstance, setMapInstance] = useState(null);
 
-  async function ensureYearData(selectedYear) {
-    const y = Number(selectedYear);
+async function ensureYearData(selectedYear) {
+  const y = Number(selectedYear);
 
-    setLoading(true);
-    setErrorText("");
+  setLoading(true);
+  setErrorText("");
 
-    try {
-      // boundaries
-      if (!geoByYear[y]) {
-        const datasetId = BOUNDARY_DATASET_BY_YEAR[y];
-        if (!datasetId) {
-          throw new Error(`No boundary dataset configured for ${y}.`);
-        }
+  try {
+    // boundaries from MySQL
+    if (!geoByYear[y]) {
+      const res = await fetch(`/api/boundaries?year=${encodeURIComponent(y)}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
 
-        const geojson = await fetchGeoJsonFromDataset(datasetId);
-
-        setGeoByYear(function (prev) {
-          const next = { ...prev };
-          next[y] = geojson;
-          return next;
-        });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Failed to load boundaries (${res.status}): ${text.slice(0, 200)}`);
       }
 
-      // results summary
-      if (!summaryByYear[y]) {
-        const csvText = await fetchTextFromDataset(RESULTS_BY_CANDIDATE_DATASET_ID);
-        const rows = parseResultsCsv(csvText);
+      const geojson = JSON.parse(text);
 
-        const summary = buildSummaryForYear(rows, y);
-        const parties = listParties(summary);
-
-        setSummaryByYear(function (prev) {
-          const next = { ...prev };
-          next[y] = summary;
-          return next;
-        });
-
-        setPartiesByYear(function (prev) {
-          const next = { ...prev };
-          next[y] = parties;
-          return next;
-        });
-      }
-    } catch (err) {
-      setErrorText(String(err && err.message ? err.message : err));
-    } finally {
-      setLoading(false);
+      setGeoByYear(function (prev) {
+        const next = { ...prev };
+        next[y] = geojson;
+        return next;
+      });
     }
+
+    // summary from MySQL
+    if (!summaryByYear[y]) {
+      const res = await fetch(`/api/boundaries/summary?year=${encodeURIComponent(y)}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Failed to load summary (${res.status}): ${text.slice(0, 200)}`);
+      }
+
+      const json = JSON.parse(text);
+      const summaryObj = json && json.summary ? json.summary : {};
+
+      // MapPage expects a Map() keyed by UPPER constituency name:
+      const summaryMap = new Map(Object.entries(summaryObj));
+
+      // party options: union of winner parties from summary
+      const partySet = new Set();
+      for (const [_k, v] of summaryMap.entries()) {
+        if (v && v.winnerParty) {
+          partySet.add(String(v.winnerParty));
+        }
+      }
+
+      setSummaryByYear(function (prev) {
+        const next = { ...prev };
+        next[y] = summaryMap;
+        return next;
+      });
+
+      setPartiesByYear(function (prev) {
+        const next = { ...prev };
+        next[y] = Array.from(partySet).sort();
+        return next;
+      });
+    }
+  } catch (err) {
+    setErrorText(String(err && err.message ? err.message : err));
+  } finally {
+    setLoading(false);
   }
+}
+
 const savedViewRef = useRef(null);
 function handleToggleSidebar() {
   if (mapInstance) {
