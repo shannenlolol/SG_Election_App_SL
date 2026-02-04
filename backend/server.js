@@ -221,58 +221,6 @@ if (!ok) {
   }
 });
 
-// app.get("/api/boundaries", requireAuth, async (req, res) => {
-//   try {
-//     const year = Number(req.query.year);
-//     if (!Number.isFinite(year)) {
-//       res.status(400).json({ message: "year is required (number)." });
-//       return;
-//     }
-
-//     const datasetId = boundaryDatasets[year];
-//     if (!datasetId) {
-//       res
-//         .status(400)
-//         .json({ message: `No boundary dataset configured for year ${year}.` });
-//       return;
-//     }
-
-//     const signedUrl = await pollDownloadUrl(datasetId);
-//     const geojson = await fetchGeoJsonFromSignedUrl(signedUrl);
-
-//     // Role restriction:
-//     // - government: return all
-//     // - civilian: filter features to their area
-//     const roleName = req.user.role_name;
-//     const userArea = String(req.user.area || "")
-//       .trim()
-//       .toUpperCase();
-
-//     if (roleName === "civilian") {
-//       const features = Array.isArray(geojson.features) ? geojson.features : [];
-//       const filtered = features.filter((f) => {
-//         const props = f && f.properties ? f.properties : {};
-//         const name = String(props.Name || props.ED_DESC || "")
-//           .trim()
-//           .toUpperCase();
-//         return name === userArea;
-//       });
-
-//       res.json({
-//         ...geojson,
-//         features: filtered,
-//       });
-//       return;
-//     }
-
-//     res.json(geojson);
-//   } catch (err) {
-//     res
-//       .status(500)
-//       .json({ message: err.message || "Failed to fetch boundaries." });
-//   }
-// });
-
 app.get("/api/public/collections/ge-results", requireAuth, async (req, res) => {
   try {
     const url =

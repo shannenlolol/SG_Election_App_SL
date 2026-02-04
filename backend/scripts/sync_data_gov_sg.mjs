@@ -30,14 +30,33 @@ function sleep(ms) {
     setTimeout(resolve, ms);
   });
 }
+function normaliseBaseName(name) {
+  return String(name || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+(GRC|SMC)$/, "");
+}
+// --- rate limiting (CKAN datastore_search is sensitive) ---
+let lastCkanCallAt = 0;
+
+async function throttleCkan(minGapMs) {
+  const now = Date.now();
+  const wait = Math.max(0, lastCkanCallAt + minGapMs - now);
+  if (wait > 0) {
+    await sleep(wait);
+  }
+  lastCkanCallAt = Date.now();
+}
+
+function jitter(ms) {
+  const r = Math.random() * 0.25 + 0.875; // 0.875 .. 1.125
+  return Math.round(ms * r);
+}
 
 async function fetchJsonWithRetry(url, options) {
-  const maxAttempts = 6;
-  let attempt = 0;
+  const maxAttempts = 10;
 
-  while (attempt < maxAttempts) {
-    attempt += 1;
-
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const res = await fetch(url, options);
 
     if (res.ok) {
@@ -46,14 +65,17 @@ async function fetchJsonWithRetry(url, options) {
 
     if (res.status === 429) {
       const retryAfter = res.headers.get("retry-after");
-      let waitMs = 800 * Math.pow(2, attempt - 1);
+      let waitMs = jitter(1200 * Math.pow(2, attempt - 1)); // exponential + jitter
 
       if (retryAfter) {
         const asNumber = Number(retryAfter);
         if (Number.isFinite(asNumber) && asNumber > 0) {
-          waitMs = asNumber * 1000;
+          waitMs = jitter(asNumber * 1000);
         }
       }
+
+      // cap wait to something sane
+      waitMs = Math.min(waitMs, 60_000);
 
       await sleep(waitMs);
       continue;
@@ -62,6 +84,7 @@ async function fetchJsonWithRetry(url, options) {
     const text = await res.text().catch(function () {
       return "";
     });
+
     throw new Error(`HTTP ${res.status} for ${url}. ${text.slice(0, 200)}`);
   }
 
@@ -70,11 +93,17 @@ async function fetchJsonWithRetry(url, options) {
 
 async function fetchAllRows(datasetId) {
   const base = "https://data.gov.sg/api/action/datastore_search";
-  const limit = 5000;
+
+  // 5000 is more likely to trigger throttling; keep it smaller
+  const limit = 1000;
+
   let offset = 0;
   let all = [];
 
   while (true) {
+    // ensure we don't spam CKAN
+    await throttleCkan(350);
+
     const url = new URL(base);
     url.searchParams.set("resource_id", datasetId);
     url.searchParams.set("limit", String(limit));
@@ -86,6 +115,7 @@ async function fetchAllRows(datasetId) {
       json && json.result && Array.isArray(json.result.records)
         ? json.result.records
         : [];
+
     all = all.concat(records);
 
     const total = Number(json && json.result ? json.result.total : 0);
@@ -94,10 +124,14 @@ async function fetchAllRows(datasetId) {
     if (records.length === 0 || offset >= total) {
       break;
     }
+
+    // extra small pause between pages
+    await sleep(150);
   }
 
   return all;
 }
+
 
 function toInt(v) {
   if (v === null || v === undefined) return null;
@@ -463,7 +497,10 @@ async function main() {
     await db.execute(insertDatesSql, [year, nomination, polling]);
   }
 
-  // 4) Parties list
+// 4) Parties list (OPTIONAL)
+// If this dataset gets rate-limited, do not fail the entire sync.
+// You can always derive parties from ge_candidate_results.
+try {
   console.log("Fetching parties list...");
   const parties = await fetchAllRows(DATASET_PARTIES);
 
@@ -482,12 +519,15 @@ async function main() {
     const abbr = String(r.abbreviation || "").trim();
     const fullName = String(r.political_party || "").trim() || null;
 
-    if (!abbr) {
-      continue;
-    }
-
+    if (!abbr) continue;
     await db.execute(insertPartiesSql, [abbr, fullName]);
   }
+} catch (e) {
+  console.log(
+    "Warning: parties list sync skipped due to error:",
+    String(e && e.message ? e.message : e),
+  );
+}
 
   // ---- Derived summary tables for dashboard ----
   console.log("Refreshing derived summary tables...");
@@ -575,6 +615,43 @@ async function main() {
   WHERE x.rank_no <= 3
   `;
   await db.query(topSql);
+  // ---------------------------------------------------------
+  // Backfill ge_boundary_features.constituency_type (IMPORTANT)
+  // Some boundary rows have NULL constituency_type because
+  // older GeoJSON names might not carry GRC/SMC consistently.
+  //
+  // We resolve by:
+  // 1) Suffix from boundary name (… SMC / … GRC)
+  // 2) Else join to ge_candidate_results via normalised base name
+  // ---------------------------------------------------------
+  console.log("Backfilling boundary constituency_type from results...");
+
+  const backfillTypeSql = `
+    UPDATE ge_boundary_features bf
+    LEFT JOIN (
+      SELECT
+        year,
+        REGEXP_REPLACE(UPPER(TRIM(constituency)), '\\\\s+(GRC|SMC)$', '') AS base_name,
+        MAX(NULLIF(TRIM(constituency_type), '')) AS ctype
+      FROM ge_candidate_results
+      GROUP BY year, base_name
+    ) cr
+      ON cr.year = bf.year
+     AND cr.base_name = REGEXP_REPLACE(UPPER(TRIM(bf.constituency)), '\\\\s+(GRC|SMC)$', '')
+    SET bf.constituency_type =
+      COALESCE(
+        NULLIF(TRIM(bf.constituency_type), ''),
+        CASE
+          WHEN UPPER(TRIM(bf.constituency)) LIKE '% SMC' THEN 'SMC'
+          WHEN UPPER(TRIM(bf.constituency)) LIKE '% GRC' THEN 'GRC'
+          ELSE NULL
+        END,
+        cr.ctype
+      )
+    WHERE bf.year IS NOT NULL
+  `;
+
+  await db.query(backfillTypeSql);
 
   await db.end();
   console.log("Done.");

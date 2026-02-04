@@ -3,17 +3,13 @@ const router = express.Router();
 
 const {
   getBoundariesByYear,
-  getBoundaryFeature,
-  getMapSummaryByYear,
+  getBoundariesSummaryByYear,
 } = require("../controllers/boundaries.controller");
 
 // GET /api/boundaries?year=2025
 router.get("/", getBoundariesByYear);
 
-// GET /api/boundaries/feature?year=2025&constituency=ALJUNIED
-router.get("/feature", getBoundaryFeature);
-
 // GET /api/boundaries/summary?year=2025
-router.get("/summary", getMapSummaryByYear);
+router.get("/summary", getBoundariesSummaryByYear);
 
 module.exports = router;

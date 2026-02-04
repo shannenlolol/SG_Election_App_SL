@@ -66,3 +66,56 @@ textarea {
 input::placeholder {
   color: rgba(255, 255, 255, 0.45);
 }
+.map-pane {
+  position: relative;
+}
+
+.map-legend {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 500; /* above leaflet tiles */
+  min-width: 170px;
+  max-width: 240px;
+
+  background: rgba(10, 14, 24, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 10px 10px 10px 10px;
+  backdrop-filter: blur(10px);
+}
+
+.map-legend-title {
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.92;
+  margin-bottom: 8px;
+}
+
+.map-legend-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.5fr; /* two columns */
+  gap: 8px 10px;
+}
+
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  opacity: 0.95;
+  white-space: nowrap;
+}
+
+.map-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.map-legend-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
