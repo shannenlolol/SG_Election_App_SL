@@ -710,3 +710,27 @@ html,body{
 .js-plotly-plot, .plotly, .dash-graph, .dash-graph > div{
   background: transparent !important;
 }
+.summary-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.summary-tables{
+  margin-top: 16px;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.panel--table{
+  padding: 12px;
+}
+
+.table-title{
+  font-weight: 700;
+  font-size: 13px;
+  margin: 2px 0 10px 2px;
+  color: rgba(255,255,255,0.85);
+}

@@ -482,3 +482,134 @@ a:hover {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px var(--ring), 0 12px 26px rgba(15, 23, 42, 0.12);
 }
+/* ---- ConstituencySelectBox: match existing .input + native dropdown feel ---- */
+
+.selectbox-root {
+  position: relative;
+  width: 100%;
+}
+
+/* closed state: look EXACTLY like your other fields */
+.selectbox-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  /* inherit whatever your .input already sets */
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+
+  cursor: pointer;
+}
+
+.selectbox-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* caret: match other selects */
+.selectbox-caret {
+  margin-left: 12px;
+  opacity: 0.9;
+  line-height: 1;
+}
+
+/* dropdown panel */
+.selectbox-menu {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  z-index: 9999;
+
+  /* match your dark UI */
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 16px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+/* open upwards (what you wanted) */
+.selectbox-menu--up {
+  bottom: calc(100% + 8px);
+}
+
+/* search box inside dropdown */
+.selectbox-search {
+  width: 100%;
+  border: 0;
+  outline: none;
+
+  /* visually match the inputs */
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+
+  padding: 14px 16px;
+  font: inherit;
+
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.selectbox-search::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* scroll area */
+.selectbox-items {
+  max-height: 320px;
+  overflow: auto;
+  padding: 6px;
+}
+
+/* each option */
+.selectbox-item {
+  width: 100%;
+  text-align: left;
+
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.95);
+
+  padding: 12px 14px;
+  border-radius: 12px;
+
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase; /* matches your party dropdown look */
+  cursor: pointer;
+}
+
+/* hover/keyboard focus */
+.selectbox-item:hover,
+.selectbox-item.active {
+  background: rgba(33, 212, 253, 0.18);
+  outline: none;
+}
+
+/* selected option: mimic the grey bar your <select> shows */
+.selectbox-item.selected {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* optional: make ALL look like the placeholder/default */
+.selectbox-item[data-key="ALL"] {
+  opacity: 0.95;
+}
+
+/* ensure it overlays other sidebar content cleanly */
+.map-sidebar {
+  position: relative;
+  z-index: 10;
+}
+
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: none;
+}

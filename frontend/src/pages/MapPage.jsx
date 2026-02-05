@@ -97,6 +97,223 @@ function colourForParty(partyCode) {
   const hue = hash % 360;
   return `hsl(${hue} 75% 50%)`;
 }
+function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const [activeIndex, setActiveIndex] = React.useState(-1);
+
+  const rootRef = React.useRef(null);
+  const inputRef = React.useRef(null);
+
+  const selectedKey = String(value || "ALL")
+    .trim()
+    .toUpperCase();
+
+  const selectedLabel = React.useMemo(
+    function () {
+      const hit = options.find(function (o) {
+        return (
+          String(o.key || "")
+            .trim()
+            .toUpperCase() === selectedKey
+        );
+      });
+      return hit ? String(hit.label) : "ALL";
+    },
+    [options, selectedKey],
+  );
+
+  const filtered = React.useMemo(
+    function () {
+      const q = String(query || "")
+        .trim()
+        .toUpperCase();
+
+      const allOpt = options.find(function (o) {
+        return String(o.key || "").toUpperCase() === "ALL";
+      });
+
+      const rest = options.filter(function (o) {
+        return String(o.key || "").toUpperCase() !== "ALL";
+      });
+
+      if (!q) {
+        return (allOpt ? [allOpt] : []).concat(rest.slice(0, 120));
+      }
+
+      const starts = [];
+      const includes = [];
+
+      for (const opt of rest) {
+        const label = String(opt.label || "");
+        const key = String(opt.key || "").toUpperCase();
+        const labelUpper = label.toUpperCase();
+
+        if (key.startsWith(q) || labelUpper.startsWith(q)) {
+          starts.push(opt);
+        } else if (key.indexOf(q) !== -1 || labelUpper.indexOf(q) !== -1) {
+          includes.push(opt);
+        }
+      }
+
+      starts.sort(function (a, b) {
+        return String(a.label).localeCompare(String(b.label));
+      });
+      includes.sort(function (a, b) {
+        return String(a.label).localeCompare(String(b.label));
+      });
+
+      const combined = starts.concat(includes).slice(0, 120);
+      return (allOpt ? [allOpt] : []).concat(combined);
+    },
+    [options, query],
+  );
+
+  React.useEffect(function () {
+    function onDocDown(e) {
+      const root = rootRef.current;
+      if (!root) return;
+      if (!root.contains(e.target)) {
+        setIsOpen(false);
+        setQuery("");
+        setActiveIndex(-1);
+      }
+    }
+
+    document.addEventListener("mousedown", onDocDown);
+    return function () {
+      document.removeEventListener("mousedown", onDocDown);
+    };
+  }, []);
+
+  function openAndFocus() {
+    setIsOpen(true);
+    window.setTimeout(function () {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.select();
+      }
+    }, 0);
+  }
+
+  function commitSelect(item) {
+    if (!item) return;
+    if (typeof onSelect === "function") {
+      onSelect(String(item.key));
+    }
+    setIsOpen(false);
+    setQuery("");
+    setActiveIndex(-1);
+  }
+
+  // When closed, show the selected label in the input.
+  // When open, show what the user types.
+  const inputValue = isOpen ? query : selectedLabel;
+
+return (
+  <div ref={rootRef} className="selectbox-root">
+    <input
+      ref={inputRef}
+      className="input selectbox-input"
+      value={inputValue}
+      placeholder={placeholder || "ALL"}
+      onFocus={function () {
+        setIsOpen(true);
+        setQuery("");
+        setActiveIndex(-1);
+      }}
+      onClick={function () {
+        // clicking input should open dropdown (like a select)
+        if (!isOpen) {
+          setIsOpen(true);
+          setQuery("");
+          setActiveIndex(-1);
+        }
+      }}
+      onChange={function (e) {
+        if (!isOpen) setIsOpen(true);
+        setQuery(String(e.target.value));
+        setActiveIndex(-1);
+      }}
+      onKeyDown={function (e) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          if (!isOpen) {
+            setIsOpen(true);
+            return;
+          }
+          setActiveIndex(function (prev) {
+            const next = prev + 1;
+            return next >= filtered.length ? 0 : next;
+          });
+        } else if (e.key === "ArrowUp") {
+          e.preventDefault();
+          if (!isOpen) {
+            setIsOpen(true);
+            return;
+          }
+          setActiveIndex(function (prev) {
+            const next = prev - 1;
+            return next < 0 ? filtered.length - 1 : next;
+          });
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          if (!isOpen) {
+            setIsOpen(true);
+            return;
+          }
+          const item = filtered[activeIndex] || filtered[0] || null;
+          commitSelect(item);
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          setIsOpen(false);
+          setQuery("");
+          setActiveIndex(-1);
+          if (inputRef.current) inputRef.current.blur();
+        }
+      }}
+      readOnly={false}
+    />
+
+    {isOpen ? (
+      <div className="selectbox-menu selectbox-menu--up" role="listbox">
+        <div className="selectbox-items">
+          {filtered.map(function (item, idx) {
+            const isActive = idx === activeIndex;
+            const isSelected =
+              String(item.key || "").toUpperCase() === selectedKey;
+
+            return (
+              <button
+                key={item.key}
+                type="button"
+                className={
+                  isActive
+                    ? "selectbox-item active"
+                    : isSelected
+                      ? "selectbox-item selected"
+                      : "selectbox-item"
+                }
+                onMouseEnter={function () {
+                  setActiveIndex(idx);
+                }}
+                onMouseDown={function (e) {
+                  e.preventDefault();
+                }}
+                onClick={function () {
+                  commitSelect(item);
+                }}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    ) : null}
+  </div>
+);
+}
 
 export default function MapPage() {
   const years = useMemo(function () {
@@ -109,7 +326,7 @@ export default function MapPage() {
   const [typeFilter, setTypeFilter] = useState("ALL"); // ALL | GRC | SMC
   const [partyContestedFilter, setPartyContestedFilter] = useState("ALL");
   const [partyWinnerFilter, setPartyWinnerFilter] = useState("ALL");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState("ALL");
 
   // UI/State
   const [errorText, setErrorText] = useState("");
@@ -275,6 +492,35 @@ export default function MapPage() {
     },
     [partyOptions],
   );
+  const constituencyOptions = React.useMemo(
+    function () {
+      if (!activeGeo || !Array.isArray(activeGeo.features)) {
+        return [];
+      }
+
+      const seen = new Set();
+      const out = [];
+
+      for (const f of activeGeo.features) {
+        const props = f && f.properties ? f.properties : {};
+        const label = getBoundaryName(props);
+        const key = normaliseConstituencyKey(label);
+
+        if (!key) continue;
+        if (seen.has(key)) continue;
+
+        seen.add(key);
+        out.push({ key: key, label: String(label) });
+      }
+
+      out.sort(function (a, b) {
+        return String(a.label).localeCompare(String(b.label));
+      });
+
+      return [{ key: "ALL", label: "ALL" }].concat(out);
+    },
+    [activeGeo],
+  );
 
   // Filtered boundaries: ONLY draw those that pass filters
   const filteredGeo = useMemo(
@@ -283,7 +529,8 @@ export default function MapPage() {
         return null;
       }
 
-      const q = upperTrim(search);
+      const qRaw = upperTrim(search);
+      const q = qRaw === "ALL" ? "" : qRaw;
 
       const outFeatures = activeGeo.features.filter(function (f) {
         const props = f && f.properties ? f.properties : {};
@@ -446,7 +693,6 @@ export default function MapPage() {
     layer.on("mouseout", function () {
       layer.setStyle({ weight: 2, fillOpacity: 0.35 });
     });
-
   }
   useEffect(
     function () {
@@ -631,7 +877,7 @@ export default function MapPage() {
           <div className="field">
             <div className="label">Year</div>
             <select
-              className="input"
+              className="input input--no-caret"
               value={year}
               onChange={function (e) {
                 setYear(Number(e.target.value));
@@ -650,7 +896,7 @@ export default function MapPage() {
           <div className="field">
             <div className="label">Constituency type</div>
             <select
-              className="input"
+              className="input input--no-caret"
               value={typeFilter}
               onChange={function (e) {
                 setTypeFilter(String(e.target.value));
@@ -665,7 +911,7 @@ export default function MapPage() {
           <div className="field">
             <div className="label">Contested Party</div>
             <select
-              className="input"
+              className="input input--no-caret"
               value={partyContestedFilter}
               onChange={function (e) {
                 setPartyContestedFilter(String(e.target.value));
@@ -685,7 +931,7 @@ export default function MapPage() {
           <div className="field">
             <div className="label">Winner Party</div>
             <select
-              className="input"
+              className="input input--no-caret"
               value={partyWinnerFilter}
               onChange={function (e) {
                 setPartyWinnerFilter(String(e.target.value));
@@ -704,12 +950,13 @@ export default function MapPage() {
 
           <div className="field">
             <div className="label">Constituency</div>
-            <input
-              className="input"
+
+            <ConstituencySelectBox
               value={search}
-              placeholder="Start typing to filter…"
-              onChange={function (e) {
-                setSearch(String(e.target.value));
+              options={constituencyOptions}
+              placeholder="ALL"
+              onSelect={function (pickedKey) {
+                setSearch(pickedKey); // "ALL" or exact constituency name
               }}
             />
           </div>

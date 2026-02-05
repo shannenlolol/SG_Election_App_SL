@@ -8,6 +8,33 @@ from dash import callback_context
 from dash.exceptions import PreventUpdate
 import html as pyhtml
 
+from datetime import datetime, date
+
+def parse_mysql_date(value):
+    if value is None:
+        return None
+
+    s = str(value).strip()
+    if not s:
+        return None
+
+    # Handles: "1955-02-27" or "1955-02-27T16:30:00.000Z"
+    # Also safe for "1955-02-27 16:30:00"
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).date()
+    except Exception:
+        try:
+            return datetime.strptime(s[:10], "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+def format_pretty_date(value):
+    d = parse_mysql_date(value)
+    if d is None:
+        return "—"
+    # "27 February 1955" (British spelling)
+    return f"{d.day} {d.strftime('%B')} {d.year}"
+
 def party_span(abbr, party_map):
     abbr = str(abbr or "").strip()
     if not abbr:
@@ -26,7 +53,7 @@ def party_span(abbr, party_map):
 def party_list_spans(abbr_list, party_map):
     if not abbr_list:
         return "—"
-    return ", ".join([party_span(a, party_map) for a in abbr_list])
+    return "".join([party_span(a, party_map) for a in abbr_list])
 
 def split_csv_parties(value):
     if value is None:
@@ -78,19 +105,32 @@ def values_for_query(values):
 
 PARTY_COLOR_MAP = {
     "PAP": "#E74C3C",  # red
-    "WP": "#2E86DE",   # blue
+    "WP":  "#2E86DE",  # blue
 }
 
+# High-contrast palette for dark backgrounds (distinct hues)
 DEFAULT_PARTY_COLORS = [
-    "#9B59B6", "#1ABC9C", "#F39C12", "#E67E22", "#00B894",
-    "#6C5CE7", "#FD79A8", "#A29BFE", "#00CEC9", "#D63031",
+    "#F4D03F",  # yellow
+    "#1ABC9C",  # teal
+    "#9B59B6",  # purple
+    "#E67E22",  # orange
+    "#2ECC71",  # green
+    "#E056FD",  # magenta
+    "#00CEC9",  # cyan
+    "#D35400",  # deep orange
+    "#6C5CE7",  # indigo
+    "#F368E0",  # pink
+    "#10AC84",  # green-teal
+    "#C8D6E5",  # light grey-blue
+    "#FF6B6B",  # coral
+    "#48DBFB",  # bright cyan-blue
+    "#FECA57",  # golden
+    "#5F27CD",  # violet
 ]
 
-BACKEND_BASE = os.getenv("BACKEND_BASE", "http://localhost:4000")
-
-DEBUG_LOGS = os.getenv("DASH_DEBUG_LOGS", "false").lower() == "true"
-
 def get_party_color(party, used_colors):
+    party = str(party or "").strip()
+
     if party in PARTY_COLOR_MAP:
         return PARTY_COLOR_MAP[party]
 
@@ -99,8 +139,13 @@ def get_party_color(party, used_colors):
             used_colors.add(c)
             return c
 
-    # fallback
     return "#95A5A6"
+
+
+BACKEND_BASE = os.getenv("BACKEND_BASE", "http://localhost:4000")
+
+DEBUG_LOGS = os.getenv("DASH_DEBUG_LOGS", "false").lower() == "true"
+
 def apply_dark_layout(fig, title, height):
     fig.update_layout(
         title=dict(
@@ -630,12 +675,12 @@ html.Div(
 def render_summary_tab():
     return html.Div(
         [
+            # Charts row
             html.Div(
                 [
                     html.Div(
                         [
                             dcc.Loading(
-                                id="loading-overall",
                                 type="circle",
                                 color="rgba(33,212,253,0.9)",
                                 children=dcc.Graph(
@@ -648,21 +693,104 @@ def render_summary_tab():
                     ),
                     html.Div(
                         [
+                            # custom legend container (we'll fill it from callback)
+                            html.Div(id="legend-yearly", className="legend-shell"),
+
                             dcc.Loading(
-                                id="loading-yearly",
                                 type="circle",
                                 color="rgba(33,212,253,0.9)",
                                 children=dcc.Graph(
                                     id="g-yearly-winners",
                                     config={"displayModeBar": False, "responsive": True},
                                 ),
-                            )
+                            ),
                         ],
                         className="panel panel--chart",
                     ),
                 ],
                 className="summary-grid",
-            )
+            ),
+
+            # Tables row
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Div("Election dates", className="table-title"),
+                            dash_table.DataTable(
+                                id="tbl-election-dates",
+                                columns=[
+                                    {"name": "Year", "id": "year"},
+                                    {"name": "Nomination day", "id": "nomination_day"},
+                                    {"name": "Polling day", "id": "polling_day"},
+                                ],
+                                data=[],
+                                sort_action="native",
+                                page_size=16,
+                                style_table={"overflowX": "auto"},
+                                style_header={
+                                    "fontWeight": 700,
+                                    "fontSize": "12px",
+                                    "backgroundColor": "rgba(15, 10, 49, 0.38)",
+                                    "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                    "color": "rgba(255,255,255,0.85)",
+                                },
+                                style_cell={
+                                    "backgroundColor": "rgba(50, 49, 49, 0.40)",
+                                    "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                    "borderLeft": "1px solid rgba(255,255,255,0.10)",
+                                    "borderRight": "1px solid rgba(255,255,255,0.10)",
+                                    "color": "rgba(255,255,255,0.88)",
+                                    "padding": "6px 10px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "nowrap",
+                                },
+                            ),
+                        ],
+                        className="panel panel--table",
+                    ),
+
+                    html.Div(
+                        [
+                            html.Div("Political parties", className="table-title"),
+                            dash_table.DataTable(
+                                id="tbl-parties",
+                                columns=[
+                                    {"name": "Abbreviation", "id": "abbreviation"},
+                                    {"name": "Party", "id": "political_party"},
+                                ],
+                                data=[],
+                                sort_action="native",
+                                page_size=16,
+                                style_table={"overflowX": "auto"},
+                                style_header={
+                                    "fontWeight": 700,
+                                    "fontSize": "12px",
+                                    "backgroundColor": "rgba(15, 10, 49, 0.38)",
+                                    "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                    "color": "rgba(255,255,255,0.85)",
+                                },
+                                style_cell={
+                                    "backgroundColor": "rgba(50, 49, 49, 0.40)",
+                                    "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                    "borderLeft": "1px solid rgba(255,255,255,0.10)",
+                                    "borderRight": "1px solid rgba(255,255,255,0.10)",
+                                    "color": "rgba(255,255,255,0.88)",
+                                    "padding": "6px 10px",
+                                    "fontSize": "12px",
+                                    "whiteSpace": "normal",
+                                    "height": "auto",
+                                },
+                                style_cell_conditional=[
+                                    {"if": {"column_id": "abbreviation"}, "width": "110px", "maxWidth": "110px"},
+                                ],
+                            ),
+                        ],
+                        className="panel panel--table",
+                    ),
+                ],
+                className="summary-tables",
+            ),
         ],
         className="summary-wrap",
     )
@@ -885,7 +1013,7 @@ def init_filters(options_data, _tab):
     parties = options_data.get("parties", [])
     consts = options_data.get("constituencies", [])
 
-    years_sorted = sorted([int(y) for y in years], reverse=True)
+    years_sorted = sorted([int(y) for y in years])
     year_options = [{"label": "All years", "value": ALL_VALUE}]
     year_options.extend([{"label": str(y), "value": int(y)} for y in years_sorted])
 
@@ -1031,6 +1159,43 @@ def update_table(years, winners, contesting, types, constituencies, options_data
     except Exception:
         return "—", []
 
+@app.callback(
+    Output("tbl-election-dates", "data"),
+    Output("tbl-parties", "data"),
+    Input("store-options", "data"),
+    Input("tabs", "value"),
+)
+def fill_summary_tables(options_data, tab_value):
+    if tab_value != "tab-summary":
+        raise PreventUpdate
+    if not options_data:
+        return [], []
+
+    # Parties from options (already present)
+    parties = options_data.get("parties", []) or []
+    party_rows = []
+    for p in parties:
+        abbr = p.get("abbreviation")
+        full = p.get("full_name") or p.get("political_party") or ""
+        if abbr:
+            party_rows.append({"abbreviation": abbr, "political_party": full})
+
+    party_rows.sort(key=lambda r: str(r["abbreviation"]))
+
+    # Dates: requires backend to include `election_dates` in options_data
+    dates = options_data.get("election_dates", []) or []
+    date_rows = []
+    for d in dates:
+        date_rows.append(
+            {
+                "year": d.get("year"),
+                "nomination_day": format_pretty_date(d.get("nomination_day")),
+                "polling_day": format_pretty_date(d.get("polling_day")),
+            }
+        )
+    date_rows.sort(key=lambda r: int(r["year"]) if r.get("year") is not None else 0)
+
+    return date_rows, party_rows
 
 @app.callback(
     Output("details-panel", "children"),

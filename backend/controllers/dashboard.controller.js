@@ -54,6 +54,14 @@ async function getDashboardOptions(req, res) {
       FROM ge_summary
       ORDER BY year DESC, constituency ASC
     `);
+    const [dateRows] = await pool.query(`
+      SELECT
+        year,
+        nomination_day,
+        polling_day
+      FROM ge_dates
+      ORDER BY year ASC
+    `);
 
     res.json({
       years: yearsRows.map(function (r) {
@@ -70,6 +78,13 @@ async function getDashboardOptions(req, res) {
           year: Number(r.year),
           constituency: r.constituency,
           constituency_type: r.constituency_type,
+        };
+      }),
+      election_dates: dateRows.map(function (r) {
+        return {
+          year: Number(r.year),
+          nomination_day: r.nomination_day, // keep as ISO string from MySQL
+          polling_day: r.polling_day,
         };
       }),
     });
