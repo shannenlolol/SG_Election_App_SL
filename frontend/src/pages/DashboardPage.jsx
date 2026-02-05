@@ -5,7 +5,7 @@ const DASH_ORIGIN = "http://localhost:4000"; // change if needed
 
 export default function DashboardPage() {
   const iframeRef = React.useRef(null);
-  const [iframeHeight, setIframeHeight] = React.useState(2000);
+  const [iframeHeight, setIframeHeight] = React.useState(300);
 
   useEffect(() => {
     function onMsg(e) {
@@ -45,11 +45,13 @@ export default function DashboardPage() {
           src="http://localhost:4000/dash/"
           style={{
             width: "100%",
-            height: iframeHeight, // from postMessage
+            height: iframeHeight,
             border: "0",
             display: "block",
             overflow: "hidden",
+            transition: "height 120ms ease",
           }}
+
                   onLoad={() => {
           // Dash might not be ready immediately; request multiple times
           requestDashHeight();
