@@ -7,6 +7,39 @@ import plotly.graph_objects as go
 from dash import callback_context
 from dash.exceptions import PreventUpdate
 
+def normalise_na(value):
+    if value is None:
+        return "—"
+
+    s = str(value).strip()
+    if s == "":
+        return "—"
+
+    if s.lower() in ["na", "n/a", "null", "none", "nan"]:
+        return "—"
+
+    return s
+
+ALL_VALUE = "__ALL__"
+def normalise_multi(values):
+    if values is None:
+        return []
+    if not isinstance(values, list):
+        values = [values]
+
+    # If ALL is selected together with other items, treat as ALL
+    if ALL_VALUE in values:
+        return [ALL_VALUE]
+
+    return values
+
+def values_for_query(values):
+    values = normalise_multi(values)
+    if not values or ALL_VALUE in values:
+        return []
+    return values
+
+
 PARTY_COLOR_MAP = {
     "PAP": "#E74C3C",  # red
     "WP": "#2E86DE",   # blue
@@ -366,17 +399,18 @@ def render_search_tab():
                         [
                             html.Label("Constituency type", className="label"),
                             dcc.Dropdown(
-                                id="dd-types",
-                                options=[
-                                    {"label": "GRC", "value": "GRC"},
-                                    {"label": "SMC", "value": "SMC"},
-                                ],
-                                value=[],
-                                # value=[],
-                                multi=True,
-                                placeholder="All types",
-                                className="control",
-                            ),
+    id="dd-types",
+    options=[
+        {"label": "All types", "value": ALL_VALUE},
+        {"label": "GRC", "value": "GRC"},
+        {"label": "SMC", "value": "SMC"},
+    ],
+    value=[],
+    multi=True,
+    placeholder="All types",
+    className="control",
+),
+
                         ],
                         className="field",
                     ),
@@ -403,13 +437,8 @@ def render_search_tab():
 
                         html.Div(
                 [
-                    html.Span("Showing ", className="kpi-line-muted"),
-                    html.Span(id="kpi-years", className="kpi-line-strong"),
-                    html.Span(". Matched entries: ", className="kpi-line-muted"),
+                    html.Span("Matched entries: ", className="kpi-line-muted"),
                     html.Span(id="kpi-count", className="kpi-line-strong"),
-                    html.Span(".", className="kpi-line-muted"),
-                    html.Span(" Average turnout: ", className="kpi-line-muted"),
-                    html.Span(id="kpi-turnout", className="kpi-line-strong"),
                 ],
                 className="kpi-line",
             ),
@@ -452,7 +481,10 @@ html.Div(
                             },
                             style_cell={
                                 "backgroundColor": "rgba(50, 49, 49, 0.78)",
-                                "borderBottom": "1px solid rgba(255,255,255,0.06)",
+                                "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                "borderLeft": "1px solid rgba(255,255,255,0.10)",
+                                "borderRight": "1px solid rgba(255,255,255,0.10)",
+                                "borderTop": "none",
                                 "color": "rgba(255,255,255,0.88)",
                                 "padding": "9px 10px",
                                 "fontSize": "12px",
@@ -720,44 +752,42 @@ def boot_load_options(_n):
 # ----------------------------
 # Populate filters defaults (ALL years selected by default)
 # ----------------------------
+
 @app.callback(
     Output("dd-years", "options"),
     Output("dd-years", "value"),
     Output("dd-winners", "options"),
+    Output("dd-winners", "value"),
     Output("dd-consts", "options"),
+    Output("dd-consts", "value"),
     Input("store-options", "data"),
     State("tabs", "value"),
 )
 def init_filters(options_data, _tab):
     if not options_data:
-        return [], [], [], []
+        return [], [ALL_VALUE], [], [ALL_VALUE], [], [ALL_VALUE]
 
     years = options_data.get("years", [])
     parties = options_data.get("parties", [])
     consts = options_data.get("constituencies", [])
 
     years_sorted = sorted([int(y) for y in years], reverse=True)
-    year_options = [{"label": str(y), "value": int(y)} for y in years_sorted]
-    year_default = []
+    year_options = [{"label": "All years", "value": ALL_VALUE}]
+    year_options.extend([{"label": str(y), "value": int(y)} for y in years_sorted])
 
-    party_options = []
+    party_options = [{"label": "All parties", "value": ALL_VALUE}]
     for p in parties:
         abbr = p.get("abbreviation")
         full_name = p.get("full_name") or ""
         if abbr:
             party_options.append({"label": f"{abbr} — {full_name}", "value": abbr})
 
-    # Constituency dropdown: show "Name (Type, Year)" but value is "Name"
-    const_options = []
+    const_options = [{"label": "All Constituencies", "value": ALL_VALUE}]
     for c in consts:
         name = c.get("constituency")
-        ctype = c.get("constituency_type")
-        year = c.get("year")
         if name:
-            label = f"{name} ({ctype}, {year})"
-            const_options.append({"label": label, "value": name})
+            const_options.append({"label": str(name), "value": str(name)})
 
-    # de-duplicate by value while keeping first label
     seen = set()
     deduped = []
     for opt in const_options:
@@ -767,16 +797,13 @@ def init_filters(options_data, _tab):
         seen.add(v)
         deduped.append(opt)
 
-    return year_options, year_default, party_options, deduped
-
+    return year_options, [], party_options, [], deduped, []
 
 # ----------------------------
 # Search + table + KPI + tooltips
 # ----------------------------
 @app.callback(
     Output("kpi-count", "children"),
-    Output("kpi-turnout", "children"),
-    Output("kpi-years", "children"),
     Output("tbl", "data"),
     Output("tbl", "tooltip_data"),
     Input("dd-years", "value"),
@@ -790,15 +817,24 @@ def update_table(years, winners, types, constituencies, options_data):
         return "—", "—", "—", [], []
 
     years = years or []
-    winners = winners or []
-    types = types or []
-    constituencies = constituencies or []
+    years = normalise_multi(years)
+    winners = normalise_multi(winners)
+    types = normalise_multi(types)
+    constituencies = normalise_multi(constituencies)
+
+    # If All selected, send empty (means no filter)
+    years_for_query = values_for_query(years)
+    winners_for_query = values_for_query(winners)
+    types_for_query = values_for_query(types)
+    consts_for_query = values_for_query(constituencies)
+
     params = {
-        "years": to_csv(years),
-        "winners": to_csv(winners),
-        "types": to_csv(types),
-        "constituencies": to_csv(constituencies),
+        "years": to_csv(years_for_query),
+        "winners": to_csv(winners_for_query),
+        "types": to_csv(types_for_query),
+        "constituencies": to_csv(consts_for_query),
     }
+
 
     try:
         resp = backend_get_json("/api/dashboard/search", params=params)
@@ -840,7 +876,7 @@ def update_table(years, winners, types, constituencies, options_data):
         for r in rows:
             year = r.get("year")
             constituency = r.get("constituency") or ""
-            ctype = r.get("constituency_type") or ""
+            ctype = normalise_na(r.get("constituency_type"))    
             winner = r.get("winner_party") or ""
             margin = r.get("margin_pct")
 
@@ -860,7 +896,7 @@ def update_table(years, winners, types, constituencies, options_data):
             }
             tooltip_data.append(tooltip_row)
 
-        return str(count), turnout_txt, years_txt, table_data, tooltip_data
+        return str(count), table_data, tooltip_data
 
     except Exception:
         return "—", "—", str(len(years) if years else "All"), [], []

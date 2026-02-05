@@ -199,6 +199,7 @@ html,body{
   line-height: 34px !important;
   font-size: 12px !important;
   color: rgba(255,255,255,0.88) !important;
+  padding-top: 1px !important;    /* tweak: 0–6 */
 }
 
 .control .Select-arrow-zone{
@@ -235,11 +236,6 @@ html,body{
   min-height: 0;
 }
 
-/* Make the table feel like the example */
-.dash-table-container .dash-spreadsheet-container{
-  border-radius: 10px;
-}
-
 /* Mobile */
 @media (max-width: 980px){
   .filters{
@@ -259,26 +255,6 @@ html,body{
   border-radius: 14px;
 }
 
-/* Prevent any default light highlight bleeding through */
-.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td,
-.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th{
-  background-clip: padding-box;
-}
-
-/* Make focus outline subtle (not bright) */
-.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td:focus{
-  outline: none !important;
-}
-
-/* Disable hover styling on header cells */
-.dash-table-container .dash-spreadsheet-container th:hover{
-  background-color: inherit !important;
-}
-
-/* Disable hover styling on the SELECTED row */
-.dash-table-container tr.selected:hover td{
-  background-color: inherit !important;
-}
 
 /* Also disable the hover “border/outline” feel on selected row */
 .dash-table-container tr.selected:hover td.focused,
@@ -286,25 +262,11 @@ html,body{
   box-shadow: none !important;
   outline: none !important;
 }
-
-/* Dash DataTable tooltip bubble */
-.dash-table-tooltip{
-  background: rgba(11,18,32,0.98) !important;
-  color: rgba(255,255,255,0.92) !important;
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  border-radius: 10px !important;
-  padding: 10px 12px !important;
-  text-align: center !important;
-  box-shadow: 0 14px 28px rgba(0,0,0,0.45) !important;
+.dash-spreadsheet td:first-child,
+.dash-spreadsheet th:first-child{
+  border-left: none !important;
 }
 
-/* Some versions wrap tooltip content inside another div */
-.dash-table-tooltip *{
-  color: rgba(255,255,255,0.92) !important;
-  text-align: center !important;
-}
-
-/* DataTable tooltips (dash_table 3.4.0) */
 .dash-table-tooltip{
   background: rgba(11,18,32,0.98) !important;
   color: rgba(255,255,255,0.92) !important;
@@ -312,21 +274,33 @@ html,body{
   border-radius: 10px !important;
   padding: 10px 12px !important;
   font-size: 12px !important;
-  text-align: center !important;
-  max-width: 340px !important;
-  white-space: normal !important;
   box-shadow: 0 14px 28px rgba(0,0,0,0.45) !important;
-}
-
-/* Ensure inner text inherits */
-.dash-table-tooltip *{
-  color: rgba(255,255,255,0.92) !important;
-  text-align: center !important;
+  /* dynamic sizing */
+  min-width: 0 !important;
+  width: max-content !important;
+  max-width: 320px !important;         /* adjust */
+  white-space: nowrap !important;      /* single line */
 }
 
 .dash-table-tooltip .dash-table-tooltip-inner{
   background: rgba(11,18,32,0.98) !important;
 }
+
+/* Remove DataTable outer border / wrapper border */
+.dash-table-container .dash-spreadsheet-container,
+.dash-table-container .dash-spreadsheet-inner,
+.dash-table-container .dash-spreadsheet,
+.dash-table-container .dash-table{
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.table-shell{
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 /* Details layout */
 .detail-stack{
   display: flex;
@@ -658,10 +632,6 @@ html,body{
 .control .Select-value-label{
   font-size: 12px !important;
   line-height: 34px !important;
-}
-
-.control .Select-input{
-  height: 34px !important;
 }
 
 .control .Select-menu-outer{

@@ -663,7 +663,7 @@ export default function MapPage() {
           </div>
 
           <div className="field">
-            <div className="label">Party contested</div>
+            <div className="label">Contested Party</div>
             <select
               className="input"
               value={partyContestedFilter}
@@ -683,7 +683,7 @@ export default function MapPage() {
           </div>
 
           <div className="field">
-            <div className="label">Party winner</div>
+            <div className="label">Winner Party</div>
             <select
               className="input"
               value={partyWinnerFilter}
