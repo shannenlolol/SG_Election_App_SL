@@ -561,7 +561,7 @@ a:hover {
 
 /* scroll area */
 .selectbox-items {
-  max-height: 220px;
+  max-height: 190px;
   overflow: auto;
   padding: 6px;
 }
@@ -640,6 +640,33 @@ select.input {
   position: relative;
   z-index: 9900;
 } */
-.map-sidebar-body {
-  overflow: visible;
+.map-sidebar-top-row{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.map-sidebar-title{
+  flex: 0 0 auto;
+}
+
+.filters-reset-btn{
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(95, 95, 95, 0.642);
+  color: rgba(255,255,255,0.9);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer; 
+  margin-left: auto;
+}
+
+.filters-reset-btn:hover{
+  background: rgba(108, 107, 107, 0.65);
+}
+
+.filters-reset-btn:active{
+  transform: translateY(1px);
 }

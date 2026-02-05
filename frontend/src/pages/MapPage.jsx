@@ -349,6 +349,21 @@ export default function MapPage() {
   const sidebarRef = useRef(null);
   const geoLayerRef = useRef(null); // optional, if you want access later
 
+  const DEFAULT_YEAR = years.length > 0 ? years[0] : 2025;
+
+  const DEFAULT_TYPE = "ALL";
+  const DEFAULT_CONTESTED = "ALL";
+  const DEFAULT_WINNER = "ALL";
+  const DEFAULT_CONSTITUENCY = "ALL";
+
+  function resetFilters() {
+    setYear(DEFAULT_YEAR);
+    setTypeFilter(DEFAULT_TYPE);
+    setPartyContestedFilter(DEFAULT_CONTESTED);
+    setPartyWinnerFilter(DEFAULT_WINNER);
+    setSearch(DEFAULT_CONSTITUENCY);
+  }
+
   async function ensureYearData(selectedYear) {
     const y = Number(selectedYear);
 
@@ -525,16 +540,11 @@ export default function MapPage() {
     },
     [activeGeo],
   );
-  const yearOptions = React.useMemo(
-    function () {
-      return [{ key: "ALL", label: "ALL" }].concat(
-        years.map(function (y) {
-          return { key: String(y), label: String(y) };
-        }),
-      );
-    },
-    [years],
-  );
+  const yearOptions = useMemo(function () {
+    return years.map(function (y) {
+      return { key: String(y), label: String(y) };
+    });
+  }, [years]);
 
   const typeOptions = React.useMemo(function () {
     return [
@@ -919,7 +929,18 @@ export default function MapPage() {
         className={isSidebarOpen ? "map-sidebar open" : "map-sidebar collapsed"}
       >
         <div className="map-sidebar-top">
-          <div className="map-sidebar-title">Filters</div>
+          <div className="map-sidebar-top-row">
+            <div className="map-sidebar-title">Filters</div>
+
+            <button
+              type="button"
+              className="filters-reset-btn"
+              onClick={resetFilters}
+              title="Reset filters"
+            >
+              Reset
+            </button>
+          </div>
         </div>
 
         <div className="map-sidebar-body">
