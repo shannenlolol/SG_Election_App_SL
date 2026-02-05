@@ -6,6 +6,26 @@ import requests
 import plotly.graph_objects as go
 from dash import callback_context
 from dash.exceptions import PreventUpdate
+import html as pyhtml
+
+def party_span(abbr, party_map):
+    abbr = str(abbr or "").strip()
+    if not abbr:
+        return "—"
+    full = str(party_map.get(abbr, "") or "").strip()
+
+    # Native tooltip
+    title = pyhtml.escape(full if full else abbr, quote=True)
+
+    # Visible text
+    text = pyhtml.escape(abbr)
+
+    return f"<span class='party-pill' title='{title}'>{text}</span>"
+
+def party_list_spans(abbr_list, party_map):
+    if not abbr_list:
+        return "—"
+    return ", ".join([party_span(a, party_map) for a in abbr_list])
 
 def split_csv_parties(value):
     if value is None:
@@ -487,21 +507,13 @@ html.Div(
                                 {"name": "Constituency", "id": "constituency"},
                                 {"name": "Constituency Type", "id": "constituency_type"},
 
-                                # NEW
-                                {"name": "Contested", "id": "contested_parties"},
+                                {"name": "Contested", "id": "contested_parties", "presentation": "markdown"},
+                                {"name": "Winner", "id": "winner_party", "presentation": "markdown"},
 
-                                {"name": "Winner", "id": "winner_party"},
                                 {"name": "Margin", "id": "margin_pct"},
                             ],
+                            markdown_options={"html": True},
 
-                            css=[
-                                {
-                                    "selector": ".dash-spreadsheet-container th:hover",
-                                    "rule": "background-color: rgba(15, 10, 49, 0.38) !important; color: rgba(255,255,255,0.85) !important;",
-                                },
-                            ],
-                            tooltip_delay=0,
-                            tooltip_duration=None,
                             data=[],
                             sort_action="native",
                             page_size=14,
@@ -520,14 +532,36 @@ html.Div(
                                 "borderRight": "1px solid rgba(255,255,255,0.10)",
                                 "borderTop": "none",
                                 "color": "rgba(255,255,255,0.88)",
-                                "padding": "9px 10px",
+
+                                # ↓ tighten row height
+                                "padding": "4px 10px",
+                                "lineHeight": "1.15",
                                 "fontSize": "12px",
+
                                 "whiteSpace": "normal",
                                 "height": "auto",
+                                    "minWidth": "0px",   # important so width rules actually apply
                             },
-                            style_data_conditional=[],
-                            tooltip_data=[],
-                        )
+                            style_cell_conditional=[
+                                {"if": {"column_id": "year"}, "width": "60px", "maxWidth": "60px"},
+                                {"if": {"column_id": "constituency"}, "width": "140px", "maxWidth": "140px"},
+                                {"if": {"column_id": "constituency_type"}, "width": "120px", "maxWidth": "120px"},
+                                {"if": {"column_id": "contested_parties"}, "width": "260px", "maxWidth": "260px"},
+                                {"if": {"column_id": "winner_party"}, "width": "260px", "maxWidth": "260px"},
+                                {"if": {"column_id": "margin_pct"}, "width": "60px", "maxWidth": "60px"},
+                            ],
+                            css=[
+                            # Right-align markdown content inside specific columns
+                            {
+                                "selector": "td[data-dash-column='contested_parties'] div.dash-cell-value.cell-markdown",
+                                "rule": "font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; width: 100%; display: block; text-align: right;",
+                            },
+                            {
+                                "selector": "td[data-dash-column='winner_party'] div.dash-cell-value.cell-markdown",
+                                "rule": "font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; width: 100%; display: block; text-align: right; ",
+                            },
+                        ],
+                    )
                     ],
                     className="table-shell",
                 )
@@ -844,12 +878,11 @@ def init_filters(options_data, _tab):
     )
 
 # ----------------------------
-# Search + table + KPI + tooltips
+# Search + table + KPI 
 # ----------------------------
 @app.callback(
     Output("kpi-count", "children"),
     Output("tbl", "data"),
-    Output("tbl", "tooltip_data"),
     Input("dd-years", "value"),
     Input("dd-winners", "value"),
     Input("dd-contesting", "value"),
@@ -859,7 +892,7 @@ def init_filters(options_data, _tab):
 )
 def update_table(years, winners, contesting, types, constituencies, options_data):
     if not options_data:
-        return "—", [], []
+        return "—", []
 
     years = normalise_multi(years or [])
     winners = normalise_multi(winners or [])
@@ -902,7 +935,6 @@ def update_table(years, winners, contesting, types, constituencies, options_data
 
             rows = filtered
 
-        # Build party tooltip map: abbr -> full name
         party_map = {}
         for p in options_data.get("parties", []):
             abbr = p.get("abbreviation")
@@ -928,7 +960,6 @@ def update_table(years, winners, contesting, types, constituencies, options_data
         # turnout_txt = safe_pct(sum(turnout_vals)/len(turnout_vals), 3) if turnout_vals else "—"
 
         table_data = []
-        tooltip_data = []
 
         for r in rows:
             year = r.get("year")
@@ -937,41 +968,24 @@ def update_table(years, winners, contesting, types, constituencies, options_data
             winner = r.get("winner_party") or ""
             margin = r.get("margin_pct")
 
-            # NEW: contested parties as comma-separated string
             contested_list = get_contesting_parties_from_row(r)
-            contested_txt = ", ".join(contested_list) if contested_list else "—"
 
             table_data.append(
                 {
                     "year": year,
                     "constituency": constituency,
                     "constituency_type": ctype,
-
-                    # NEW
-                    "contested_parties": contested_txt,
-
-                    "winner_party": winner,
+                    "contested_parties": party_list_spans(contested_list, party_map),
+                    "winner_party": party_span(winner, party_map),
                     "margin_pct": safe_pct(margin, digits=3),
                 }
             )
 
-            # tooltips
-            winner_full = party_map.get(str(winner), "")
-            contested_full = []
-            for abbr in contested_list:
-                full = party_map.get(str(abbr), "")
-                contested_full.append(full if full else str(abbr))
+        return str(len(rows)), table_data
 
-            tooltip_row = {
-                "winner_party": {"value": (winner_full or winner or "—"), "type": "text"},
-                "contested_parties": {"value": ", ".join(contested_full) if contested_full else contested_txt, "type": "text"},
-            }
-            tooltip_data.append(tooltip_row)
-
-        return str(count), table_data, tooltip_data
 
     except Exception:
-        return "—", [], []
+        return "—", []
 
 
 @app.callback(
