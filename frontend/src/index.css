@@ -561,7 +561,7 @@ a:hover {
 
 /* scroll area */
 .selectbox-items {
-  max-height: 320px;
+  max-height: 220px;
   overflow: auto;
   padding: 6px;
 }
@@ -575,7 +575,7 @@ a:hover {
   background: transparent;
   color: rgba(255, 255, 255, 0.95);
 
-  padding: 12px 14px;
+  padding: 8px 10px;
   border-radius: 12px;
 
   font: inherit;
@@ -612,4 +612,34 @@ select.input {
   -webkit-appearance: none;
   -moz-appearance: none;
   background-image: none;
+}
+.selectbox-root {
+  position: relative;
+}
+
+.selectbox-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 2000;
+}
+
+/* up = opens above input */
+.selectbox-menu--up {
+  bottom: calc(100% + 8px);
+}
+
+/* down = opens below input */
+.selectbox-menu--down {
+  top: calc(100% + 8px);
+}
+.selectbox-menu {
+  z-index: 9999;
+}
+/* .selectbox-root {
+  position: relative;
+  z-index: 9900;
+} */
+.map-sidebar-body {
+  overflow: visible;
 }

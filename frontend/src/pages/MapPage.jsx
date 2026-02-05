@@ -97,7 +97,14 @@ function colourForParty(partyCode) {
   const hue = hash % 360;
   return `hsl(${hue} 75% 50%)`;
 }
-function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
+function TypeaheadSelectBox({
+  value,
+  options,
+  onSelect,
+  placeholder,
+  direction, // "up" | "down"
+  maxItems,
+}) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [activeIndex, setActiveIndex] = React.useState(-1);
@@ -118,10 +125,12 @@ function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
             .toUpperCase() === selectedKey
         );
       });
-      return hit ? String(hit.label) : "ALL";
+      return hit ? String(hit.label) : placeholder || "ALL";
     },
-    [options, selectedKey],
+    [options, selectedKey, placeholder],
   );
+
+  const limit = Number.isFinite(Number(maxItems)) ? Number(maxItems) : 120;
 
   const filtered = React.useMemo(
     function () {
@@ -138,7 +147,7 @@ function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
       });
 
       if (!q) {
-        return (allOpt ? [allOpt] : []).concat(rest.slice(0, 120));
+        return (allOpt ? [allOpt] : []).concat(rest.slice(0, limit));
       }
 
       const starts = [];
@@ -163,10 +172,10 @@ function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
         return String(a.label).localeCompare(String(b.label));
       });
 
-      const combined = starts.concat(includes).slice(0, 120);
+      const combined = starts.concat(includes).slice(0, limit);
       return (allOpt ? [allOpt] : []).concat(combined);
     },
-    [options, query],
+    [options, query, limit],
   );
 
   React.useEffect(function () {
@@ -186,14 +195,16 @@ function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
     };
   }, []);
 
-  function openAndFocus() {
+  function openMenu() {
     setIsOpen(true);
-    window.setTimeout(function () {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.select();
-      }
-    }, 0);
+    setQuery("");
+    setActiveIndex(-1);
+  }
+
+  function closeMenu() {
+    setIsOpen(false);
+    setQuery("");
+    setActiveIndex(-1);
   }
 
   function commitSelect(item) {
@@ -201,118 +212,111 @@ function ConstituencySelectBox({ value, options, onSelect, placeholder }) {
     if (typeof onSelect === "function") {
       onSelect(String(item.key));
     }
-    setIsOpen(false);
-    setQuery("");
-    setActiveIndex(-1);
+    closeMenu();
   }
 
-  // When closed, show the selected label in the input.
-  // When open, show what the user types.
   const inputValue = isOpen ? query : selectedLabel;
 
-return (
-  <div ref={rootRef} className="selectbox-root">
-    <input
-      ref={inputRef}
-      className="input selectbox-input"
-      value={inputValue}
-      placeholder={placeholder || "ALL"}
-      onFocus={function () {
-        setIsOpen(true);
-        setQuery("");
-        setActiveIndex(-1);
-      }}
-      onClick={function () {
-        // clicking input should open dropdown (like a select)
-        if (!isOpen) {
-          setIsOpen(true);
-          setQuery("");
+  return (
+    <div ref={rootRef} className="selectbox-root">
+      <input
+        ref={inputRef}
+        className="input selectbox-input"
+        value={inputValue}
+        placeholder={placeholder || "ALL"}
+        onFocus={function () {
+          openMenu();
+        }}
+        onClick={function () {
+          if (!isOpen) openMenu();
+        }}
+        onChange={function (e) {
+          if (!isOpen) setIsOpen(true);
+          setQuery(String(e.target.value));
           setActiveIndex(-1);
-        }
-      }}
-      onChange={function (e) {
-        if (!isOpen) setIsOpen(true);
-        setQuery(String(e.target.value));
-        setActiveIndex(-1);
-      }}
-      onKeyDown={function (e) {
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          if (!isOpen) {
-            setIsOpen(true);
-            return;
+        }}
+        onKeyDown={function (e) {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            if (!isOpen) {
+              openMenu();
+              return;
+            }
+            setActiveIndex(function (prev) {
+              const next = prev + 1;
+              return next >= filtered.length ? 0 : next;
+            });
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            if (!isOpen) {
+              openMenu();
+              return;
+            }
+            setActiveIndex(function (prev) {
+              const next = prev - 1;
+              return next < 0 ? filtered.length - 1 : next;
+            });
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (!isOpen) {
+              openMenu();
+              return;
+            }
+            const item = filtered[activeIndex] || filtered[0] || null;
+            commitSelect(item);
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            closeMenu();
+            if (inputRef.current) inputRef.current.blur();
           }
-          setActiveIndex(function (prev) {
-            const next = prev + 1;
-            return next >= filtered.length ? 0 : next;
-          });
-        } else if (e.key === "ArrowUp") {
-          e.preventDefault();
-          if (!isOpen) {
-            setIsOpen(true);
-            return;
-          }
-          setActiveIndex(function (prev) {
-            const next = prev - 1;
-            return next < 0 ? filtered.length - 1 : next;
-          });
-        } else if (e.key === "Enter") {
-          e.preventDefault();
-          if (!isOpen) {
-            setIsOpen(true);
-            return;
-          }
-          const item = filtered[activeIndex] || filtered[0] || null;
-          commitSelect(item);
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          setIsOpen(false);
-          setQuery("");
-          setActiveIndex(-1);
-          if (inputRef.current) inputRef.current.blur();
-        }
-      }}
-      readOnly={false}
-    />
+        }}
+      />
 
-    {isOpen ? (
-      <div className="selectbox-menu selectbox-menu--up" role="listbox">
-        <div className="selectbox-items">
-          {filtered.map(function (item, idx) {
-            const isActive = idx === activeIndex;
-            const isSelected =
-              String(item.key || "").toUpperCase() === selectedKey;
+      {isOpen ? (
+        <div
+          className={
+            direction === "down"
+              ? "selectbox-menu selectbox-menu--down"
+              : "selectbox-menu selectbox-menu--up"
+          }
+          role="listbox"
+        >
+          <div className="selectbox-items">
+            {filtered.map(function (item, idx) {
+              const isActive = idx === activeIndex;
+              const isSelected =
+                String(item.key || "").toUpperCase() === selectedKey;
 
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={
-                  isActive
-                    ? "selectbox-item active"
-                    : isSelected
-                      ? "selectbox-item selected"
-                      : "selectbox-item"
-                }
-                onMouseEnter={function () {
-                  setActiveIndex(idx);
-                }}
-                onMouseDown={function (e) {
-                  e.preventDefault();
-                }}
-                onClick={function () {
-                  commitSelect(item);
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={
+                    isActive
+                      ? "selectbox-item active"
+                      : isSelected
+                        ? "selectbox-item selected"
+                        : "selectbox-item"
+                  }
+                  onMouseEnter={function () {
+                    setActiveIndex(idx);
+                  }}
+                  onMouseDown={function (e) {
+                    e.preventDefault();
+                  }}
+                  onClick={function () {
+                    commitSelect(item);
+                  }}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    ) : null}
-  </div>
-);
+      ) : null}
+    </div>
+  );
 }
 
 export default function MapPage() {
@@ -520,6 +524,51 @@ export default function MapPage() {
       return [{ key: "ALL", label: "ALL" }].concat(out);
     },
     [activeGeo],
+  );
+  const yearOptions = React.useMemo(
+    function () {
+      return [{ key: "ALL", label: "ALL" }].concat(
+        years.map(function (y) {
+          return { key: String(y), label: String(y) };
+        }),
+      );
+    },
+    [years],
+  );
+
+  const typeOptions = React.useMemo(function () {
+    return [
+      { key: "ALL", label: "ALL" },
+      { key: "GRC", label: "GRC" },
+      { key: "SMC", label: "SMC" },
+    ];
+  }, []);
+
+  const partySelectOptions = React.useMemo(
+    function () {
+      const list = Array.isArray(partyOptions) ? partyOptions.slice() : [];
+      const cleaned = [];
+      const seen = new Set();
+
+      for (const p of list) {
+        const k = upperTrim(p);
+        if (!k) continue;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        cleaned.push(k);
+      }
+
+      cleaned.sort(function (a, b) {
+        return a.localeCompare(b);
+      });
+
+      return [{ key: "ALL", label: "ALL" }].concat(
+        cleaned.map(function (p) {
+          return { key: p, label: p };
+        }),
+      );
+    },
+    [partyOptions],
   );
 
   // Filtered boundaries: ONLY draw those that pass filters
@@ -876,87 +925,69 @@ export default function MapPage() {
         <div className="map-sidebar-body">
           <div className="field">
             <div className="label">Year</div>
-            <select
-              className="input input--no-caret"
-              value={year}
-              onChange={function (e) {
-                setYear(Number(e.target.value));
+            <TypeaheadSelectBox
+              value={String(year)}
+              options={yearOptions}
+              placeholder={String(year)}
+              direction="down"
+              onSelect={function (picked) {
+                // allow typing exact year, but keep it safe
+                const n = Number(picked);
+                if (Number.isFinite(n)) {
+                  setYear(n);
+                }
               }}
-            >
-              {years.map(function (y) {
-                return (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                );
-              })}
-            </select>
+            />
           </div>
 
           <div className="field">
             <div className="label">Constituency type</div>
-            <select
-              className="input input--no-caret"
+            <TypeaheadSelectBox
               value={typeFilter}
-              onChange={function (e) {
-                setTypeFilter(String(e.target.value));
+              options={typeOptions}
+              placeholder="ALL"
+              direction="down"
+              onSelect={function (picked) {
+                setTypeFilter(String(picked));
               }}
-            >
-              <option value="ALL">ALL</option>
-              <option value="GRC">GRC</option>
-              <option value="SMC">SMC</option>
-            </select>
+            />
           </div>
 
           <div className="field">
             <div className="label">Contested Party</div>
-            <select
-              className="input input--no-caret"
+            <TypeaheadSelectBox
               value={partyContestedFilter}
-              onChange={function (e) {
-                setPartyContestedFilter(String(e.target.value));
+              options={partySelectOptions}
+              placeholder="ALL"
+              direction="up"
+              onSelect={function (picked) {
+                setPartyContestedFilter(String(picked));
               }}
-            >
-              <option value="ALL">ALL</option>
-              {partyOptions.map(function (p) {
-                return (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                );
-              })}
-            </select>
+            />
           </div>
 
           <div className="field">
             <div className="label">Winner Party</div>
-            <select
-              className="input input--no-caret"
+            <TypeaheadSelectBox
               value={partyWinnerFilter}
-              onChange={function (e) {
-                setPartyWinnerFilter(String(e.target.value));
+              options={partySelectOptions}
+              placeholder="ALL"
+              direction="up"
+              onSelect={function (picked) {
+                setPartyWinnerFilter(String(picked));
               }}
-            >
-              <option value="ALL">ALL</option>
-              {partyOptions.map(function (p) {
-                return (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                );
-              })}
-            </select>
+            />
           </div>
 
           <div className="field">
             <div className="label">Constituency</div>
-
-            <ConstituencySelectBox
+            <TypeaheadSelectBox
               value={search}
               options={constituencyOptions}
               placeholder="ALL"
+              direction="up"
               onSelect={function (pickedKey) {
-                setSearch(pickedKey); // "ALL" or exact constituency name
+                setSearch(String(pickedKey));
               }}
             />
           </div>
