@@ -111,11 +111,11 @@ html,body{
 }
 
 /* give Year/Winner/Type smaller widths, Constituency bigger */
-.filters .field:nth-child(1){ flex: 0.4 1 0; }
-.filters .field:nth-child(2){ flex: 1.4 1 0; }
-.filters .field:nth-child(3){ flex: 1.4 1 0; }
-.filters .field:nth-child(4){ flex: 0.6 1 0; }
-.filters .field:nth-child(5){ flex: 1.2 1 0; }
+.filters .field:nth-child(1){ flex: 0.6 1 0; }
+.filters .field:nth-child(2){ flex: 1.5 1 0; }
+.filters .field:nth-child(3){ flex: 1.5 1 0; }
+.filters .field:nth-child(4){ flex: 0.7 1 0; }
+.filters .field:nth-child(5){ flex: 1 1 0; }
 
 /* slightly smaller labels so toolbar stays short */
 .label{
@@ -186,7 +186,6 @@ html,body{
 
 .control .Select-placeholder,
 .control .Select-value-label{
-  line-height: 34px !important;
   font-size: 12px !important;
   color: rgba(255,255,255,0.88) !important;
 }
@@ -634,15 +633,10 @@ html,body{
 
 /* ---------- Make dropdowns + options smaller (4) ---------- */
 .control .Select-control{
-  min-height: 34px !important;
-  height: 34px !important;
+  min-height: 20px !important;
+  height: 20px !important;
 }
 
-.control .Select-placeholder,
-.control .Select-value-label{
-  font-size: 12px !important;
-  line-height: 34px !important;
-}
 
 .control .Select-menu-outer{
   font-size: 12px !important;
@@ -650,13 +644,13 @@ html,body{
 
 .control .Select-option{
   padding: 6px 10px !important;
-  line-height: 16px !important;
+  line-height: 10px !important;
 }
 
 /* Reduce multi-value chip size a bit too */
 .control .Select--multi .Select-value{
-  font-size: 11px !important;
-  line-height: 18px !important;
+  font-size: 8px !important;
+  line-height: 10px !important;
 }
 
 .control .Select-menu-outer{
@@ -733,4 +727,31 @@ html,body{
   font-size: 13px;
   margin: 2px 0 10px 2px;
   color: rgba(255,255,255,0.85);
+}
+.kpi-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 0 10px 0;
+}
+
+.btn-reset-filters {
+  font-family:  ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(82, 82, 82, 0.35);
+  color: rgba(255,255,255,0.90);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.btn-reset-filters:hover {
+  border-color: rgba(33,212,253,0.35);
+}
+
+.btn-reset-filters:active {
+  transform: translateY(1px);
 }

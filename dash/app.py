@@ -484,20 +484,19 @@ def render_search_tab():
                         className="field field--year",
                     ),
                     html.Div(
-    [
-        html.Label("Contesting party", className="label"),
-        dcc.Dropdown(
-            id="dd-contesting",
-            options=[],
-            value=[],
-            multi=True,
-            placeholder="All parties",
-            className="control",
-        ),
-    ],
-    className="field field--contesting",
-),
-
+                        [
+                            html.Label("Contesting party", className="label"),
+                            dcc.Dropdown(
+                                id="dd-contesting",
+                                options=[],
+                                value=[],
+                                multi=True,
+                                placeholder="All parties",
+                                className="control",
+                            ),
+                        ],
+                        className="field field--contesting",
+                    ),
                     html.Div(
                         [
                             html.Label("Winner party", className="label"),
@@ -513,24 +512,23 @@ def render_search_tab():
                         className="field field--winner",
                     ),
                     html.Div(
-    [
-        html.Label("Constituency type", className="label"),
-        dcc.Dropdown(
-            id="dd-types",
-            options=[
-                {"label": "All types", "value": ALL_VALUE},
-                {"label": "GRC", "value": "GRC"},
-                {"label": "SMC", "value": "SMC"},
-            ],
-            value=[],
-            multi=True,
-            placeholder="All types",
-            className="control",
-        ),
-    ],
-    className="field field--type",
-),
-
+                        [
+                            html.Label("Constituency type", className="label"),
+                            dcc.Dropdown(
+                                id="dd-types",
+                                options=[
+                                    {"label": "All types", "value": ALL_VALUE},
+                                    {"label": "GRC", "value": "GRC"},
+                                    {"label": "SMC", "value": "SMC"},
+                                ],
+                                value=[],
+                                multi=True,
+                                placeholder="All types",
+                                className="control",
+                            ),
+                        ],
+                        className="field field--type",
+                    ),
                     html.Div(
                         [
                             html.Label("Constituency", className="label"),
@@ -546,128 +544,123 @@ def render_search_tab():
                         ],
                         className="field field--const",
                     ),
-
                 ],
                 className="panel filters",
             ),
-
-                        html.Div(
+            # KPI + Reset row
+            html.Div(
                 [
-                    html.Span("Matched entries: ", className="kpi-line-muted"),
-                    html.Span(id="kpi-count", className="kpi-line-strong"),
+                    html.Div(
+                        [
+                            html.Span("Matched entries: ", className="kpi-line-muted"),
+                            html.Span(id="kpi-count", className="kpi-line-strong"),
+                        ],
+                        className="kpi-line",
+                    ),
+                    html.Button(
+                        "Reset",
+                        id="btn-reset-filters",
+                        n_clicks=0,
+                        type="button",
+                        className="btn-reset-filters",
+                    ),
                 ],
-                className="kpi-line",
+                className="kpi-row",
             ),
 
-
-html.Div(
-    [
-        html.Div(
-            [
-                # a padding shell so the table isn't hugging borders
-                html.Div(
-                    [
-                        dash_table.DataTable(
-                            id="tbl",
-                            columns=[
-                                {"name": "Year", "id": "year"},
-                                {"name": "Constituency", "id": "constituency"},
-                                {"name": "Constituency Type", "id": "constituency_type"},
-
-                                {"name": "Contested", "id": "contested_parties", "presentation": "markdown"},
-                                {"name": "Winner", "id": "winner_party", "presentation": "markdown"},
-
-                                {"name": "Margin", "id": "margin_pct"},
-                            ],
-                            markdown_options={"html": True},
-
-                            data=[],
-                            sort_action="native",
-                            page_size=14,
-                            style_table={"overflowX": "auto"},
-                            style_header={
-                                "fontWeight": 700,
-                                "fontSize": "12px",
-                                "backgroundColor": "rgba(15, 10, 49, 0.38)",
-                                "borderBottom": "1px solid rgba(255,255,255,0.10)",
-                                "color": "rgba(255,255,255,0.85)",
-                            },
-                            style_cell={
-                                "backgroundColor": "rgba(50, 49, 49, 0.78)",
-                                "borderBottom": "1px solid rgba(255,255,255,0.10)",
-                                "borderLeft": "1px solid rgba(255,255,255,0.10)",
-                                "borderRight": "1px solid rgba(255,255,255,0.10)",
-                                "borderTop": "none",
-                                "color": "rgba(255,255,255,0.88)",
-
-                                # ↓ tighten row height
-                                "padding": "4px 10px",
-                                "lineHeight": "1.15",
-                                "fontSize": "12px",
-
-                                "whiteSpace": "normal",
-                                "height": "auto",
-                                    "minWidth": "0px",   # important so width rules actually apply
-                            },
-                            style_cell_conditional=[
-                                {"if": {"column_id": "year"}, "width": "60px", "maxWidth": "60px"},
-                                {"if": {"column_id": "constituency"}, "width": "140px", "maxWidth": "140px"},
-                                {"if": {"column_id": "constituency_type"}, "width": "120px", "maxWidth": "120px"},
-                                {"if": {"column_id": "contested_parties"}, "width": "260px", "maxWidth": "260px"},
-                                {"if": {"column_id": "winner_party"}, "width": "260px", "maxWidth": "260px"},
-                                {"if": {"column_id": "margin_pct"}, "width": "60px", "maxWidth": "60px"},
-                            ],
-                            css=[
-                            # Right-align markdown content inside specific columns
-                            {
-                                "selector": "td[data-dash-column='contested_parties'] div.dash-cell-value.cell-markdown",
-                                "rule": "font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; width: 100%; display: block; text-align: right;",
-                            },
-                            {
-                                "selector": "td[data-dash-column='winner_party'] div.dash-cell-value.cell-markdown",
-                                "rule": "font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; width: 100%; display: block; text-align: right; ",
-                            },
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    dash_table.DataTable(
+                                        id="tbl",
+                                        columns=[
+                                            {"name": "Year", "id": "year"},
+                                            {"name": "Constituency", "id": "constituency"},
+                                            {"name": "Constituency Type", "id": "constituency_type"},
+                                            {"name": "Contested", "id": "contested_parties", "presentation": "markdown"},
+                                            {"name": "Winner", "id": "winner_party", "presentation": "markdown"},
+                                            {"name": "Margin", "id": "margin_pct"},
+                                        ],
+                                        markdown_options={"html": True},
+                                        data=[],
+                                        sort_action="native",
+                                        page_size=14,
+                                        style_table={"overflowX": "auto"},
+                                        style_header={
+                                            "fontWeight": 700,
+                                            "fontSize": "12px",
+                                            "backgroundColor": "rgba(15, 10, 49, 0.38)",
+                                            "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                            "color": "rgba(255,255,255,0.85)",
+                                        },
+                                        style_cell={
+                                            "backgroundColor": "rgba(50, 49, 49, 0.78)",
+                                            "borderBottom": "1px solid rgba(255,255,255,0.10)",
+                                            "borderLeft": "1px solid rgba(255,255,255,0.10)",
+                                            "borderRight": "1px solid rgba(255,255,255,0.10)",
+                                            "borderTop": "none",
+                                            "color": "rgba(255,255,255,0.88)",
+                                            "padding": "4px 10px",
+                                            "lineHeight": "1.15",
+                                            "fontSize": "12px",
+                                            "whiteSpace": "normal",
+                                            "height": "auto",
+                                            "minWidth": "0px",
+                                        },
+                                        style_cell_conditional=[
+                                            {"if": {"column_id": "year"}, "width": "60px", "maxWidth": "60px"},
+                                            {"if": {"column_id": "constituency"}, "width": "140px", "maxWidth": "140px"},
+                                            {"if": {"column_id": "constituency_type"}, "width": "120px", "maxWidth": "120px"},
+                                            {"if": {"column_id": "contested_parties"}, "width": "260px", "maxWidth": "260px"},
+                                            {"if": {"column_id": "winner_party"}, "width": "260px", "maxWidth": "260px"},
+                                            {"if": {"column_id": "margin_pct"}, "width": "60px", "maxWidth": "60px"},
+                                        ],
+                                        css=[
+                                            {
+                                                "selector": "td[data-dash-column='contested_parties'] div.dash-cell-value.cell-markdown",
+                                                "rule": "font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; width: 100%; display: block; text-align: right;",
+                                            },
+                                            {
+                                                "selector": "td[data-dash-column='winner_party'] div.dash-cell-value.cell-markdown",
+                                                "rule": "font-family: inherit; font-size: inherit; font-weight: inherit; line-height: inherit; width: 100%; display: block; text-align: right;",
+                                            },
+                                        ],
+                                    )
+                                ],
+                                className="table-shell",
+                            )
                         ],
-                    )
-                    ],
-                    className="table-shell",
-                )
-            ],
-            id="left-pane",
-            className="split-left",
-            # IMPORTANT: default to full width on initial load
-            style={"flex": "1 1 100%", "minWidth": "0"},
-        ),
-
-        html.Div(
-            [
-                # Close button exists in the layout always (prevents "nonexistent object" errors)
-                html.Button(
-    "×",
-    id="btn-close-details",
-    n_clicks=0,
-    className="detail-close-x",
-    type="button",
-    **{"aria-label": "Close details"},
-),
-
-
-                html.Div(
-                    id="details-panel",
-                    className="panel details-panel",
-                    style={"display": "none"},
-                ),
-            ],
-            id="right-pane",
-            className="split-right",
-            style={"display": "none", "flex": "1 1 50%", "minWidth": "0"},
-        ),
-    ],
-    id="split-wrap",
-    className="split-wrap",
-),
-
-
+                        id="left-pane",
+                        className="split-left",
+                        style={"flex": "1 1 100%", "minWidth": "0"},
+                    ),
+                    html.Div(
+                        [
+                            html.Button(
+                                "×",
+                                id="btn-close-details",
+                                n_clicks=0,
+                                className="detail-close-x",
+                                type="button",
+                                **{"aria-label": "Close details"},
+                            ),
+                            html.Div(
+                                id="details-panel",
+                                className="panel details-panel",
+                                style={"display": "none"},
+                            ),
+                        ],
+                        id="right-pane",
+                        className="split-right",
+                        style={"display": "none", "flex": "1 1 50%", "minWidth": "0"},
+                    ),
+                ],
+                id="split-wrap",
+                className="split-wrap",
+            ),
         ]
     )
 
@@ -812,16 +805,10 @@ app.layout = html.Div(
             id="tabs",
             value="tab-search",
             children=[
-                dcc.Tab(label="Search", value="tab-search"),
-                dcc.Tab(label="Summary", value="tab-summary"),
+                dcc.Tab(label="Search", value="tab-search", children=render_search_tab()),
+                dcc.Tab(label="Summary", value="tab-summary", children=render_summary_tab()),
             ],
             className="tabs",
-        ),
-
-        html.Div(
-            id="tab-content",
-            className="tab-content",
-            children=render_search_tab(),  # IMPORTANT: so tbl exists on initial load
         ),
 
     ],
@@ -881,76 +868,61 @@ def style_selected_row(active_row):
     return styles
 
 @app.callback(
-    Output("tab-content", "children"),
-    Input("tabs", "value"),
-)
-def switch_tab(tab_value):
-    if tab_value == "tab-summary":
-        return render_summary_tab()
-    return render_search_tab()
-
-@app.callback(
     Output("store-expanded", "data"),
     Output("store-active-row", "data"),
     Input("tbl", "active_cell"),
     Input("btn-close-details", "n_clicks"),
     Input("boot", "n_intervals"),
+    Input("btn-reset-filters", "n_clicks"),
     State("tbl", "data"),
     State("store-expanded", "data"),
     prevent_initial_call=False,
 )
-def manage_expansion(active_cell, close_clicks, boot_intervals, table_data, expanded_state):
+def manage_expansion(active_cell, close_clicks, boot_intervals, reset_clicks, table_data, expanded_state):
     ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    # 1) On boot: always start collapsed
     if trigger_id == "boot":
         return None, None
 
-    # 2) Close button: collapse + clear active row
+    if trigger_id == "btn-reset-filters":
+        if not reset_clicks:
+            raise PreventUpdate
+        return None, None
+
     if trigger_id == "btn-close-details":
         if not close_clicks:
             raise PreventUpdate
         return None, None
 
-    # 3) Table click: expand/collapse based on clicked row
     if trigger_id == "tbl":
-        # When layout changes, Dash sometimes emits active_cell=None briefly.
-        # Ignore that (do NOT collapse).
         if not active_cell:
             raise PreventUpdate
-
         if not table_data:
             raise PreventUpdate
 
         row_index = active_cell.get("row")
         if row_index is None:
             raise PreventUpdate
-
         if row_index < 0 or row_index >= len(table_data):
             raise PreventUpdate
 
         clicked = table_data[row_index]
         clicked_key = f"{clicked.get('year')}|{clicked.get('constituency')}"
 
-        # Click same expanded row -> collapse
         if expanded_state and expanded_state.get("key") == clicked_key:
             return None, None
 
-        # Expand new row
         return (
-            {
-                "key": clicked_key,
-                "year": clicked.get("year"),
-                "constituency": clicked.get("constituency"),
-            },
+            {"key": clicked_key, "year": clicked.get("year"), "constituency": clicked.get("constituency")},
             int(row_index),
         )
 
     raise PreventUpdate
+
 
 @app.callback(
     Output("right-pane", "style"),
@@ -998,35 +970,46 @@ def boot_load_options(_n):
     Output("dd-years", "value"),
     Output("dd-winners", "options"),
     Output("dd-winners", "value"),
-    Output("dd-contesting", "options"),   # NEW
-    Output("dd-contesting", "value"),     # NEW
+    Output("dd-contesting", "options"),
+    Output("dd-contesting", "value"),
     Output("dd-consts", "options"),
     Output("dd-consts", "value"),
     Input("store-options", "data"),
-    State("tabs", "value"),
+    Input("btn-reset-filters", "n_clicks"),
 )
-def init_filters(options_data, _tab):
+def init_filters(options_data, _reset_clicks):
+    print("!!!!!!!!options_data keys:", list((options_data or {}).keys()), flush=True)
+
     if not options_data:
-        return [], [ALL_VALUE], [], [ALL_VALUE], [], [ALL_VALUE], [], [ALL_VALUE]
+        return [], [], [], [], [], [], [], []
 
-    years = options_data.get("years", [])
-    parties = options_data.get("parties", [])
-    consts = options_data.get("constituencies", [])
+    years = options_data.get("years", []) or []
+    parties = options_data.get("parties", []) or []
+    consts = options_data.get("constituencies", []) or []
 
-    years_sorted = sorted([int(y) for y in years])
+    # years
+    years_sorted = []
+    for y in years:
+        try:
+            years_sorted.append(int(y))
+        except Exception:
+            pass
+    years_sorted = sorted(list(set(years_sorted)))
+
     year_options = [{"label": "All years", "value": ALL_VALUE}]
     year_options.extend([{"label": str(y), "value": int(y)} for y in years_sorted])
 
+    # parties
     party_options = [{"label": "All parties", "value": ALL_VALUE}]
     for p in parties:
         abbr = p.get("abbreviation")
         full_name = p.get("full_name") or ""
         if abbr:
-            party_options.append({"label": f"{abbr} — {full_name}", "value": abbr})
+            party_options.append({"label": f"{abbr} - {full_name}", "value": str(abbr)})
 
-    # NEW: contesting uses the same options as party dropdown
     contesting_options = list(party_options)
 
+    # constituencies
     const_options = [{"label": "All Constituencies", "value": ALL_VALUE}]
     for c in consts:
         name = c.get("constituency")
@@ -1042,12 +1025,28 @@ def init_filters(options_data, _tab):
         seen.add(v)
         deduped.append(opt)
 
+    # empty values = "All"
     return (
         year_options, [],
         party_options, [],
-        contesting_options, [],   # NEW
+        contesting_options, [],
         deduped, []
     )
+@app.callback(
+    Output("tbl", "active_cell"),
+    Input("btn-reset-filters", "n_clicks"),
+    prevent_initial_call=True,
+)
+def reset_table_selection(_n):
+    return None
+
+@app.callback(
+    Output("dd-types", "value"),
+    Input("btn-reset-filters", "n_clicks"),
+    prevent_initial_call=True,
+)
+def reset_types(_n):
+    return []
 
 # ----------------------------
 # Search + table + KPI 
