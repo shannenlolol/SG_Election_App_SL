@@ -1,63 +1,25 @@
-// src/pages/LoginPage.jsx
 import React from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { apiPost, apiGet } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
-
-function parseApiError(err) {
-  const raw = String(err && err.message ? err.message : err || "").trim();
-
-  let message = raw;
-  try {
-    const obj = JSON.parse(raw);
-    if (obj && typeof obj === "object") {
-      if (typeof obj.message === "string") {
-        message = obj.message;
-      } else if (typeof obj.error === "string") {
-        message = obj.error;
-      }
-    }
-  } catch (_e) {
-    // keep raw
-  }
-
-  const lower = String(message || "").toLowerCase();
-
-  if (lower.includes("invalid credentials")) {
-    return "Your username or password is incorrect. Please try again.";
-  }
-
-  if (lower.includes("not authenticated") || lower.includes("unauthorized")) {
-    return "You are not signed in. Please sign in again.";
-  }
-
-  if (!message) {
-    return "Request failed. Please try again.";
-  }
-
-  return message;
-}
+import { Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const { user, setUser, loading } = useAuth();
+  const { user, setUser } = useAuth();
 
   const [username, setUsername] = React.useState("diana");
   const [password, setPassword] = React.useState("Password123!");
+  const [showPassword, setShowPassword] = React.useState(false);
+
   const [errorText, setErrorText] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
-  const redirectTo = React.useMemo(() => {
-    const from = location.state && location.state.from;
-    return from || "/map";
-  }, [location.state]);
-
   React.useEffect(() => {
-    if (!loading && user) {
-      navigate(redirectTo, { replace: true });
+    if (user) {
+      navigate("/map");
     }
-  }, [user, loading, navigate, redirectTo]);
+  }, [user, navigate]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -68,9 +30,9 @@ export default function LoginPage() {
       await apiPost("/api/auth/login", { username, password });
       const me = await apiGet("/api/auth/me");
       setUser(me.user);
-      navigate(redirectTo, { replace: true });
+      navigate("/map");
     } catch (err) {
-      setErrorText(parseApiError(err));
+      setErrorText(String(err && err.message ? err.message : "Request failed."));
     } finally {
       setSubmitting(false);
     }
@@ -99,22 +61,35 @@ export default function LoginPage() {
 
           <div className="field">
             <label className="label" htmlFor="password">Password</label>
-            <input
-              id="password"
-              className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              autoComplete="current-password"
-            />
+
+            <div className="pw-wrap">
+              <input
+                id="password"
+                className="input pw-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+              />
+
+              <button
+                type="button"
+                className="pw-toggle"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button className="button" type="submit" disabled={submitting}>
             {submitting ? "Signing in..." : "Login"}
           </button>
-
-          {errorText ? <div className="login-error">{errorText}</div> : null}
         </form>
+
+        {errorText ? <div className="error">{errorText}</div> : null}
       </div>
     </div>
   );

@@ -53,8 +53,12 @@ export default function NavBar() {
           </div>
 
           <nav className="topbar-nav">
-            <NavLink to="/map" end className={navClass}>Map</NavLink>
-            <NavLink to="/dashboard" end className={navClass}>Dashboard</NavLink>
+            <NavLink to="/dashboard" end className={navClass}>
+              Dashboard
+            </NavLink>
+            <NavLink to="/map" end className={navClass}>
+              Map
+            </NavLink>
           </nav>
         </div>
 
