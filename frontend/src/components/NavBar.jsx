@@ -8,11 +8,15 @@ export default function NavBar() {
   const { user, setUser, loading } = useAuth();
 
   async function onLogout() {
-    await apiPost("/api/auth/logout", {});
-    setUser(null);
-    navigate("/login");
+    try {
+      await apiPost("/api/auth/logout", {});
+    } catch (_err) {
+      // even if server fails, proceed to clear local state
+    } finally {
+      setUser(null);
+      navigate("/login", { replace: true });
+    }
   }
-
   if (loading) {
     return (
       <div className="topbar">

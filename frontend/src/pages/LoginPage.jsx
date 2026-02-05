@@ -1,22 +1,63 @@
+// src/pages/LoginPage.jsx
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { apiPost, apiGet } from "../api.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 
+function parseApiError(err) {
+  const raw = String(err && err.message ? err.message : err || "").trim();
+
+  let message = raw;
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") {
+      if (typeof obj.message === "string") {
+        message = obj.message;
+      } else if (typeof obj.error === "string") {
+        message = obj.error;
+      }
+    }
+  } catch (_e) {
+    // keep raw
+  }
+
+  const lower = String(message || "").toLowerCase();
+
+  if (lower.includes("invalid credentials")) {
+    return "Your username or password is incorrect. Please try again.";
+  }
+
+  if (lower.includes("not authenticated") || lower.includes("unauthorized")) {
+    return "You are not signed in. Please sign in again.";
+  }
+
+  if (!message) {
+    return "Request failed. Please try again.";
+  }
+
+  return message;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, setUser } = useAuth();
+  const location = useLocation();
+  const { user, setUser, loading } = useAuth();
 
   const [username, setUsername] = React.useState("diana");
   const [password, setPassword] = React.useState("Password123!");
   const [errorText, setErrorText] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
 
+  const redirectTo = React.useMemo(() => {
+    const from = location.state && location.state.from;
+    return from || "/map";
+  }, [location.state]);
+
   React.useEffect(() => {
-    if (user) {
-      navigate("/map");
+    if (!loading && user) {
+      navigate(redirectTo, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate, redirectTo]);
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -27,9 +68,9 @@ export default function LoginPage() {
       await apiPost("/api/auth/login", { username, password });
       const me = await apiGet("/api/auth/me");
       setUser(me.user);
-      navigate("/map");
+      navigate(redirectTo, { replace: true });
     } catch (err) {
-      setErrorText(String(err && err.message ? err.message : "Request failed."));
+      setErrorText(parseApiError(err));
     } finally {
       setSubmitting(false);
     }
@@ -39,10 +80,8 @@ export default function LoginPage() {
     <div className="page">
       <div className="card">
         <div className="brand">
-          {/* <div className="badge" /> */}
           <div>
             <h1 className="title">Sign in</h1>
-            {/* <p className="subtitle">Use your assigned voter or admin account.</p> */}
           </div>
         </div>
 
@@ -73,17 +112,9 @@ export default function LoginPage() {
           <button className="button" type="submit" disabled={submitting}>
             {submitting ? "Signing in..." : "Login"}
           </button>
+
+          {errorText ? <div className="login-error">{errorText}</div> : null}
         </form>
-
-        {errorText ? <div className="error">{errorText}</div> : null}
-
-        {/* <div className="hint">
-          <div>Demo credentials:</div>
-          <div style={{ marginTop: "6px" }}>
-            <div><strong>diana</strong> / Password123! (civilian)</div>
-            <div><strong>eve</strong> / Password123! (government)</div>
-          </div>
-        </div> */}
       </div>
     </div>
   );

@@ -670,3 +670,15 @@ select.input {
 .filters-reset-btn:active{
   transform: translateY(1px);
 }
+.login-error {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+
+  background: rgba(239, 68, 68, 0.14);        /* pastel red */
+  border: 1px solid rgba(239, 68, 68, 0.32);  /* soft red border */
+  color: rgba(255, 255, 255, 0.92);
+
+  font-size: 13px;
+  line-height: 1.35;
+}

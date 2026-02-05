@@ -41,7 +41,10 @@ app.use(
 
     onProxyReq: function (proxyReq, req, res) {
       const cookieHeader = req.headers.cookie || "";
-      console.log("[proxy] forwarding cookies (first 200):", cookieHeader.slice(0, 200));
+      console.log(
+        "[proxy] forwarding cookies (first 200):",
+        cookieHeader.slice(0, 200),
+      );
 
       if (req.headers.cookie) {
         proxyReq.setHeader("cookie", req.headers.cookie);
@@ -57,7 +60,6 @@ app.use(
     },
   }),
 );
-
 
 app.use(express.json());
 app.use("/api/dashboard", requireAuth, dashboardRoutes);
@@ -151,12 +153,12 @@ app.post("/api/auth/login", async (req, res) => {
 
     const isProd = process.env.NODE_ENV === "production";
 
-res.cookie("token", token, {
-  httpOnly: true,
-  sameSite: "lax",
-  path: "/", // IMPORTANT so it applies to /dash too
-});
-
+    res.cookie("token", token, {
+      httpOnly: true,
+      sameSite: isProd ? "none" : "lax",
+      secure: isProd, // IMPORTANT when sameSite is "none"
+      path: "/", // IMPORTANT for all routes (/dash too)
+    });
 
     res.json({
       username: user.username,
@@ -171,14 +173,26 @@ res.cookie("token", token, {
 
 // --- Auth: logout ---
 app.post("/api/auth/logout", (req, res) => {
+  const isProd = process.env.NODE_ENV === "production";
+
+  // Clear the cookie using the SAME attributes used when setting it
   res.clearCookie("token", {
+    httpOnly: true,
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
     path: "/",
-    sameSite: "none",
-    secure: false,
   });
+
+  // Optional safety: if you previously set different attributes during experiments,
+  // clear those variants too (harmless if they don't exist).
+  res.clearCookie("token", { path: "/" });
+  res.clearCookie("token", { path: "/", sameSite: "lax" });
+  res.clearCookie("token", { path: "/", sameSite: "none", secure: false });
+  res.clearCookie("token", { path: "/", sameSite: "none", secure: true });
 
   res.json({ message: "Logged out." });
 });
+
 
 // --- Auth: whoami (Dash and React can use this) ---
 app.get("/api/auth/me", requireAuth, (req, res) => {
@@ -194,17 +208,17 @@ app.get("/api/proxy", async function (req, res) {
     }
 
     // basic safety: only allow the expected host
-const allowedPrefixes = [
-  "https://s3.ap-southeast-1.amazonaws.com/blobs.data.gov.sg/",
-  "https://s3.",
-  "https://s3.ap-southeast-1.amazonaws.com/table-downloads-ingest.data.gov.sg/",
-];
+    const allowedPrefixes = [
+      "https://s3.ap-southeast-1.amazonaws.com/blobs.data.gov.sg/",
+      "https://s3.",
+      "https://s3.ap-southeast-1.amazonaws.com/table-downloads-ingest.data.gov.sg/",
+    ];
 
-const ok = allowedPrefixes.some((p) => url.startsWith(p));
-if (!ok) {
-  res.status(400).json({ message: "invalid proxy target" });
-  return;
-}
+    const ok = allowedPrefixes.some((p) => url.startsWith(p));
+    if (!ok) {
+      res.status(400).json({ message: "invalid proxy target" });
+      return;
+    }
 
     const upstream = await fetch(url);
     if (!upstream.ok) {
@@ -217,7 +231,9 @@ if (!ok) {
     const body = await upstream.text();
     res.send(body);
   } catch (err) {
-    res.status(500).json({ message: String(err && err.message ? err.message : err) });
+    res
+      .status(500)
+      .json({ message: String(err && err.message ? err.message : err) });
   }
 });
 
@@ -284,14 +300,16 @@ app.get("/api/dashboard/constituencies", requireAuth, async (req, res) => {
 
     const [rows] = await pool.query(
       "SELECT DISTINCT constituency FROM ge_summary WHERE year = ? ORDER BY constituency ASC",
-      [year]
+      [year],
     );
 
     res.json({
       constituencies: rows.map((r) => String(r.constituency)),
     });
   } catch (err) {
-    res.status(500).json({ message: err.message || "Failed to load constituencies." });
+    res
+      .status(500)
+      .json({ message: err.message || "Failed to load constituencies." });
   }
 });
 
@@ -302,9 +320,6 @@ app.get("/api/auth/probe", requireAuth, (req, res) => {
     cookies: Object.keys(req.cookies || {}),
   });
 });
-
-
-
 
 app.get("/", (req, res) => {
   res.send("Backend is running.");
