@@ -80,6 +80,7 @@ async function getDashboardOptions(req, res) {
 
 async function searchDashboardRows(req, res) {
   try {
+    const contestingParties = splitCsvParam(req.query.contesting);
     const years = splitCsvParam(req.query.years);
     const winnerParties = splitCsvParam(req.query.winners);
     const types = splitCsvParam(req.query.types);
@@ -87,16 +88,27 @@ async function searchDashboardRows(req, res) {
     const q = String(req.query.q || "").trim();
 
     let sql = `
-      SELECT
-        s.year,
-        s.constituency,
-        s.constituency_type,
-        s.winner_party,
-        s.margin_pct,
-        s.turnout_pct
-      FROM ge_summary s
-      WHERE 1 = 1
-    `;
+  SELECT
+    s.year,
+    s.constituency,
+    s.constituency_type,
+    s.winner_party,
+    s.margin_pct,
+    s.turnout_pct,
+    cp.contesting_parties
+  FROM ge_summary s
+  LEFT JOIN (
+    SELECT
+      r.year,
+      r.constituency,
+      GROUP_CONCAT(DISTINCT r.party ORDER BY r.party SEPARATOR ',') AS contesting_parties
+    FROM ge_candidate_results r
+    GROUP BY r.year, r.constituency
+  ) cp
+    ON cp.year = s.year AND cp.constituency = s.constituency
+  WHERE 1 = 1
+`;
+
     const params = [];
 
     if (years.length > 0) {
@@ -117,6 +129,16 @@ async function searchDashboardRows(req, res) {
     if (constituencies.length > 0) {
       const built = buildInClause(constituencies, params);
       sql += ` AND s.constituency IN ${built.sql}`;
+    }
+    if (contestingParties.length > 0) {
+      // Match if any selected party is in the concatenated list.
+      // This is a safe approach using FIND_IN_SET for each party (OR-ed).
+      const orParts = [];
+      for (const p of contestingParties) {
+        orParts.push(`FIND_IN_SET(?, cp.contesting_parties) > 0`);
+        params.push(p);
+      }
+      sql += ` AND (${orParts.join(" OR ")})`;
     }
 
     if (q) {
@@ -140,6 +162,9 @@ async function searchDashboardRows(req, res) {
           winner_party: r.winner_party,
           margin_pct: r.margin_pct === null ? null : Number(r.margin_pct),
           turnout_pct: r.turnout_pct === null ? null : Number(r.turnout_pct),
+
+          // NEW
+          contesting_parties: r.contesting_parties || "",
         };
       }),
     });
@@ -154,7 +179,9 @@ async function getDashboardDetails(req, res) {
     const constituency = String(req.query.constituency || "").trim();
 
     if (!Number.isFinite(year) || !constituency) {
-      res.status(400).json({ message: "Missing or invalid year / constituency." });
+      res
+        .status(400)
+        .json({ message: "Missing or invalid year / constituency." });
       return;
     }
 

@@ -113,8 +113,9 @@ html,body{
 /* give Year/Winner/Type smaller widths, Constituency bigger */
 .filters .field:nth-child(1){ flex: 0.4 1 0; }
 .filters .field:nth-child(2){ flex: 1.4 1 0; }
-.filters .field:nth-child(3){ flex: 0.6 1 0; }
-.filters .field:nth-child(4){ flex: 1.2 1 0; }
+.filters .field:nth-child(3){ flex: 1.4 1 0; }
+.filters .field:nth-child(4){ flex: 0.6 1 0; }
+.filters .field:nth-child(5){ flex: 1.2 1 0; }
 
 /* slightly smaller labels so toolbar stays short */
 .label{
@@ -606,16 +607,24 @@ html,body{
   padding: 12px;
 }
 
-.field{
-  min-width: 180px;
-  flex: 1 1 220px;
+/* ===== Filters sizing (final override) ===== */
+.panel.filters{
+  display:flex !important;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: nowrap;
 }
 
-/* (5) make Year + Constituency narrower, Winner wider */
-.field--year{ flex: 0 1 160px; min-width: 140px; }
-.field--const{ flex: 0 1 220px; min-width: 200px; }
-.field--winner{ flex: 1 1 360px; min-width: 320px; }
+.panel.filters .field{
+  min-width: 0 !important;  /* allow shrink */
+}
 
+/* widths */
+.field--year{ flex: 0 0 140px; }
+.field--contesting{ flex: 1 1 260px; }  /* same as winner */
+.field--winner{ flex: 1 1 260px; }      /* same as contesting */
+.field--type{ flex: 0 0 120px; }        /* much smaller */
+.field--const{ flex: 1 1 320px; }       /* remaining space */
 /* Apply those classes by setting className on the relevant field divs:
    Year -> "field field--year"
    Winner -> "field field--winner"

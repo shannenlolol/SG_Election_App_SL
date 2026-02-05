@@ -7,6 +7,21 @@ import plotly.graph_objects as go
 from dash import callback_context
 from dash.exceptions import PreventUpdate
 
+def split_csv_parties(value):
+    if value is None:
+        return []
+    s = str(value).strip()
+    if not s:
+        return []
+    return [p.strip() for p in s.split(",") if p.strip()]
+
+def get_contesting_parties_from_row(row):
+    # Try common keys; adjust if your backend uses a different name
+    for key in ["contesting_parties", "contesting_party", "parties_contested", "contesting_parties_csv"]:
+        if key in row:
+            return split_csv_parties(row.get(key))
+    return []
+
 def normalise_na(value):
     if value is None:
         return "—"
@@ -382,6 +397,21 @@ def render_search_tab():
                         className="field field--year",
                     ),
                     html.Div(
+    [
+        html.Label("Contesting party", className="label"),
+        dcc.Dropdown(
+            id="dd-contesting",
+            options=[],
+            value=[],
+            multi=True,
+            placeholder="All parties",
+            className="control",
+        ),
+    ],
+    className="field field--contesting",
+),
+
+                    html.Div(
                         [
                             html.Label("Winner party", className="label"),
                             dcc.Dropdown(
@@ -396,24 +426,23 @@ def render_search_tab():
                         className="field field--winner",
                     ),
                     html.Div(
-                        [
-                            html.Label("Constituency type", className="label"),
-                            dcc.Dropdown(
-    id="dd-types",
-    options=[
-        {"label": "All types", "value": ALL_VALUE},
-        {"label": "GRC", "value": "GRC"},
-        {"label": "SMC", "value": "SMC"},
+    [
+        html.Label("Constituency type", className="label"),
+        dcc.Dropdown(
+            id="dd-types",
+            options=[
+                {"label": "All types", "value": ALL_VALUE},
+                {"label": "GRC", "value": "GRC"},
+                {"label": "SMC", "value": "SMC"},
+            ],
+            value=[],
+            multi=True,
+            placeholder="All types",
+            className="control",
+        ),
     ],
-    value=[],
-    multi=True,
-    placeholder="All types",
-    className="control",
+    className="field field--type",
 ),
-
-                        ],
-                        className="field",
-                    ),
 
                     html.Div(
                         [
@@ -457,9 +486,14 @@ html.Div(
                                 {"name": "Year", "id": "year"},
                                 {"name": "Constituency", "id": "constituency"},
                                 {"name": "Constituency Type", "id": "constituency_type"},
+
+                                # NEW
+                                {"name": "Contested", "id": "contested_parties"},
+
                                 {"name": "Winner", "id": "winner_party"},
                                 {"name": "Margin", "id": "margin_pct"},
                             ],
+
                             css=[
                                 {
                                     "selector": ".dash-spreadsheet-container th:hover",
@@ -758,6 +792,8 @@ def boot_load_options(_n):
     Output("dd-years", "value"),
     Output("dd-winners", "options"),
     Output("dd-winners", "value"),
+    Output("dd-contesting", "options"),   # NEW
+    Output("dd-contesting", "value"),     # NEW
     Output("dd-consts", "options"),
     Output("dd-consts", "value"),
     Input("store-options", "data"),
@@ -765,7 +801,7 @@ def boot_load_options(_n):
 )
 def init_filters(options_data, _tab):
     if not options_data:
-        return [], [ALL_VALUE], [], [ALL_VALUE], [], [ALL_VALUE]
+        return [], [ALL_VALUE], [], [ALL_VALUE], [], [ALL_VALUE], [], [ALL_VALUE]
 
     years = options_data.get("years", [])
     parties = options_data.get("parties", [])
@@ -782,6 +818,9 @@ def init_filters(options_data, _tab):
         if abbr:
             party_options.append({"label": f"{abbr} — {full_name}", "value": abbr})
 
+    # NEW: contesting uses the same options as party dropdown
+    contesting_options = list(party_options)
+
     const_options = [{"label": "All Constituencies", "value": ALL_VALUE}]
     for c in consts:
         name = c.get("constituency")
@@ -797,7 +836,12 @@ def init_filters(options_data, _tab):
         seen.add(v)
         deduped.append(opt)
 
-    return year_options, [], party_options, [], deduped, []
+    return (
+        year_options, [],
+        party_options, [],
+        contesting_options, [],   # NEW
+        deduped, []
+    )
 
 # ----------------------------
 # Search + table + KPI + tooltips
@@ -808,23 +852,24 @@ def init_filters(options_data, _tab):
     Output("tbl", "tooltip_data"),
     Input("dd-years", "value"),
     Input("dd-winners", "value"),
+    Input("dd-contesting", "value"),
     Input("dd-types", "value"),
     Input("dd-consts", "value"),
     State("store-options", "data"),
 )
-def update_table(years, winners, types, constituencies, options_data):
+def update_table(years, winners, contesting, types, constituencies, options_data):
     if not options_data:
-        return "—", "—", "—", [], []
+        return "—", [], []
 
-    years = years or []
-    years = normalise_multi(years)
-    winners = normalise_multi(winners)
-    types = normalise_multi(types)
-    constituencies = normalise_multi(constituencies)
+    years = normalise_multi(years or [])
+    winners = normalise_multi(winners or [])
+    contesting = normalise_multi(contesting or [])
+    types = normalise_multi(types or [])
+    constituencies = normalise_multi(constituencies or [])
 
-    # If All selected, send empty (means no filter)
     years_for_query = values_for_query(years)
     winners_for_query = values_for_query(winners)
+    contesting_for_query = values_for_query(contesting)
     types_for_query = values_for_query(types)
     consts_for_query = values_for_query(constituencies)
 
@@ -833,16 +878,42 @@ def update_table(years, winners, types, constituencies, options_data):
         "winners": to_csv(winners_for_query),
         "types": to_csv(types_for_query),
         "constituencies": to_csv(consts_for_query),
-    }
 
+        # optional backend support later; harmless now
+        "contesting": to_csv(contesting_for_query),
+    }
 
     try:
         resp = backend_get_json("/api/dashboard/search", params=params)
-        rows = resp.get("rows", [])
+        rows = resp.get("rows", []) or []
 
-        # KPI: count + average turnout
+        # --- Client-side filter: contesting party ---
+        if contesting_for_query:
+            wanted = set(str(x) for x in contesting_for_query)
+            filtered = []
+
+            for r in rows:
+                contested_list = get_contesting_parties_from_row(r)
+                contested_set = set(str(p) for p in contested_list)
+
+                # keep row if ANY selected party contested here
+                if contested_set.intersection(wanted):
+                    filtered.append(r)
+
+            rows = filtered
+
+        # Build party tooltip map: abbr -> full name
+        party_map = {}
+        for p in options_data.get("parties", []):
+            abbr = p.get("abbreviation")
+            full_name = p.get("full_name")
+            if abbr:
+                party_map[str(abbr)] = str(full_name or "")
+
+        # KPI count (AFTER filtering)
         count = len(rows)
 
+        # average turnout (AFTER filtering)
         turnout_vals = []
         for r in rows:
             t = r.get("turnout_pct")
@@ -853,53 +924,54 @@ def update_table(years, winners, types, constituencies, options_data):
             except Exception:
                 pass
 
-        if turnout_vals:
-            avg_turnout = sum(turnout_vals) / float(len(turnout_vals))
-            turnout_txt = safe_pct(avg_turnout, digits=3)
-        else:
-            turnout_txt = "—"
+        # (you can display turnout somewhere later if you want)
+        # turnout_txt = safe_pct(sum(turnout_vals)/len(turnout_vals), 3) if turnout_vals else "—"
 
-        years_txt = str(len(years)) if years else "All"
-
-        # Party tooltip map
-        party_map = {}
-        for p in options_data.get("parties", []):
-            abbr = p.get("abbreviation")
-            full_name = p.get("full_name")
-            if abbr:
-                party_map[str(abbr)] = str(full_name or "")
-
-        # Build DataTable data + tooltip_data
         table_data = []
         tooltip_data = []
 
         for r in rows:
             year = r.get("year")
             constituency = r.get("constituency") or ""
-            ctype = normalise_na(r.get("constituency_type"))    
+            ctype = normalise_na(r.get("constituency_type"))
             winner = r.get("winner_party") or ""
             margin = r.get("margin_pct")
+
+            # NEW: contested parties as comma-separated string
+            contested_list = get_contesting_parties_from_row(r)
+            contested_txt = ", ".join(contested_list) if contested_list else "—"
 
             table_data.append(
                 {
                     "year": year,
                     "constituency": constituency,
                     "constituency_type": ctype,
+
+                    # NEW
+                    "contested_parties": contested_txt,
+
                     "winner_party": winner,
                     "margin_pct": safe_pct(margin, digits=3),
                 }
             )
 
+            # tooltips
             winner_full = party_map.get(str(winner), "")
+            contested_full = []
+            for abbr in contested_list:
+                full = party_map.get(str(abbr), "")
+                contested_full.append(full if full else str(abbr))
+
             tooltip_row = {
-                "winner_party": {"value": winner_full or winner, "type": "text"},
+                "winner_party": {"value": (winner_full or winner or "—"), "type": "text"},
+                "contested_parties": {"value": ", ".join(contested_full) if contested_full else contested_txt, "type": "text"},
             }
             tooltip_data.append(tooltip_row)
 
         return str(count), table_data, tooltip_data
 
     except Exception:
-        return "—", "—", str(len(years) if years else "All"), [], []
+        return "—", [], []
 
 
 @app.callback(
