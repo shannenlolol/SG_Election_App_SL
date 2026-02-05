@@ -678,3 +678,35 @@ html,body{
   border-color: rgba(33,212,253,0.40);
   background: rgba(33,212,253,0.10);
 }
+.summary-wrap{
+  padding: 12px 6px 6px 6px;
+}
+
+.summary-grid{
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.panel--chart{
+  flex: 1 1 0;
+  min-width: 0; /* critical so Plotly can shrink without overflow */
+  padding: 14px 14px 10px 14px;
+}
+
+/* stack on small screens */
+@media (max-width: 1100px){
+  .summary-grid{
+    flex-direction: column;
+  }
+}
+
+/* reduce “squished” look */
+.panel{
+  border-radius: 16px;
+}
+
+/* stop Plotly container from flashing white */
+.js-plotly-plot, .plotly, .dash-graph, .dash-graph > div{
+  background: transparent !important;
+}

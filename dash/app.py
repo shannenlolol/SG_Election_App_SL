@@ -22,6 +22,7 @@ def party_span(abbr, party_map):
 
     return f"<span class='party-pill' title='{title}'>{text}</span>"
 
+
 def party_list_spans(abbr_list, party_map):
     if not abbr_list:
         return "—"
@@ -119,6 +120,27 @@ def apply_dark_layout(fig, title, height):
         ),
     )
     return fig
+def placeholder_fig(title, height):
+    fig = go.Figure()
+    apply_dark_layout(fig, title, height=height)
+    fig.update_layout(
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        annotations=[
+            dict(
+                text="Loading…",
+                x=0.5,
+                y=0.5,
+                xref="paper",
+                yref="paper",
+                showarrow=False,
+                font=dict(size=13, color="rgba(255,255,255,0.65)"),
+            )
+        ],
+    )
+    return fig
+FIG_LOADING_OVERALL = placeholder_fig("Overall: constituencies won by party", 420)
+FIG_LOADING_YEARLY = placeholder_fig("Year-by-year: constituencies won", 420)
 
 def log(*args):
     if DEBUG_LOGS:
@@ -610,17 +632,39 @@ def render_summary_tab():
         [
             html.Div(
                 [
-                    dcc.Graph(id="g-overall-winners", config={"displayModeBar": False}),
+                    html.Div(
+                        [
+                            dcc.Loading(
+                                id="loading-overall",
+                                type="circle",
+                                color="rgba(33,212,253,0.9)",
+                                children=dcc.Graph(
+                                    id="g-overall-winners",
+                                    config={"displayModeBar": False, "responsive": True},
+                                ),
+                            )
+                        ],
+                        className="panel panel--chart",
+                    ),
+                    html.Div(
+                        [
+                            dcc.Loading(
+                                id="loading-yearly",
+                                type="circle",
+                                color="rgba(33,212,253,0.9)",
+                                children=dcc.Graph(
+                                    id="g-yearly-winners",
+                                    config={"displayModeBar": False, "responsive": True},
+                                ),
+                            )
+                        ],
+                        className="panel panel--chart",
+                    ),
                 ],
-                className="panel",
-            ),
-            html.Div(
-                [
-                    dcc.Graph(id="g-yearly-winners", config={"displayModeBar": False}),
-                ],
-                className="panel",
-            ),
-        ]
+                className="summary-grid",
+            )
+        ],
+        className="summary-wrap",
     )
 
 # ----------------------------
@@ -1086,9 +1130,8 @@ def render_details(expanded_state):
 )
 def build_summary(tab_value):
     if tab_value != "tab-summary":
-        fig_empty_1 = go.Figure()
-        fig_empty_2 = go.Figure()
-        return fig_empty_1, fig_empty_2
+        return FIG_LOADING_OVERALL, FIG_LOADING_YEARLY
+
 
     # Pull all rows (no filters) and aggregate
     try:
@@ -1173,7 +1216,7 @@ def build_summary(tab_value):
 
 
         # Yearly stacked bar
-        years_sorted = sorted([int(y) for y in yearly.keys()], reverse=True)
+        years_sorted = sorted([int(y) for y in yearly.keys()])
         parties = sorted(list(overall.keys()))
 
         # better ordering: show PAP/WP first in legend, then others alphabetically
