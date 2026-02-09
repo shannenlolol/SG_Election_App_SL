@@ -721,7 +721,7 @@ select.input {
 .map-sidebar.collapsed,
 /* .map-sidebar-top, */
 .map-sidebar-body {
-  background: #2b2f38; 
+  background: #2c2d2f; 
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }

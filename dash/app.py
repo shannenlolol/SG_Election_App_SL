@@ -653,7 +653,7 @@ def render_search_tab():
                                         style_header={
                                             "fontWeight": 700,
                                             "fontSize": "12px",
-                                            "backgroundColor": "rgba(15, 10, 49, 0.38)",
+                                            "backgroundColor": "rgba(39, 39, 39, 0.92)",
                                             "borderBottom": "1px solid rgba(255,255,255,0.10)",
                                             "color": "rgba(255,255,255,0.85)",
                                         },

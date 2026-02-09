@@ -17,7 +17,7 @@ export default function LoginPage() {
 
   React.useEffect(() => {
     if (user) {
-      navigate("/map");
+      navigate("/dashboard");
     }
   }, [user, navigate]);
 
@@ -30,7 +30,7 @@ export default function LoginPage() {
       await apiPost("/api/auth/login", { username, password });
       const me = await apiGet("/api/auth/me");
       setUser(me.user);
-      navigate("/map");
+      navigate("/dashboard");
     } catch (err) {
       setErrorText(String(err && err.message ? err.message : "Request failed."));
     } finally {

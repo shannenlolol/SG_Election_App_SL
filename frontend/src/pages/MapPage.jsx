@@ -4,17 +4,12 @@ import { MapContainer, TileLayer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 
 function upperTrim(value) {
-  return String(value || "")
-    .trim()
-    .toUpperCase();
+  return String(value || "").trim().toUpperCase();
 }
+
 function fitToGeo(map, geojson, leftInsetPx, transitionMs, shouldAnimate) {
   if (!map) return;
-  if (
-    !geojson ||
-    !Array.isArray(geojson.features) ||
-    geojson.features.length === 0
-  ) {
+  if (!geojson || !Array.isArray(geojson.features) || geojson.features.length === 0) {
     return;
   }
 
@@ -48,11 +43,10 @@ function normaliseConstituencyKey(value) {
   return String(value || "")
     .trim()
     .toUpperCase()
-    .replace(/[–—]/g, "-") // normalise dash types to "-"
-    .replace(/\s+/g, " "); // collapse whitespace
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ");
 }
 
-// Different boundary years use different property keys
 function getBoundaryName(properties) {
   if (properties && properties.ED_DESC_FU) return String(properties.ED_DESC_FU);
   if (properties && properties.ED_DESC) return String(properties.ED_DESC);
@@ -66,31 +60,42 @@ function getBoundaryTypeFromName(properties) {
   if (name.endsWith(" GRC")) return "GRC";
   return "";
 }
+
 function clamp01(x) {
   const n = Number(x);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(1, n));
 }
 
-// Map winner% (0–100) to fillOpacity.
-// We clamp to [0.15..0.92] so 51% isn't too faint and 100% isn't a solid blob.
 function opacityFromWinnerPct(winnerPct) {
-  const t = clamp01(Number(winnerPct) / 100);
+  const pct = Number(winnerPct);
 
-  const minO = 0.15;
-  const maxO = 0.92;
+  if (!Number.isFinite(pct)) {
+    return 0.25;
+  }
 
-  // optional: slightly boost the high end so 70–100 feels more distinct
-  // (still linear-ish but nicer visually)
-  const eased = Math.pow(t, 0.85);
+  // Focus the visual range on realistic winners:
+  // 35% -> "very low opacity", 100% -> "very high opacity"
+  const LOW = 35;
+  const HIGH = 80;
 
-  return minO + (maxO - minO) * eased;
+  const t = clamp01((pct - LOW) / (HIGH - LOW));
+
+  // Stronger contrast: higher gamma makes low % much more transparent
+  const GAMMA = 1.8;
+  const eased = Math.pow(t, GAMMA);
+
+  // Wider opacity span
+  const MIN_O = 0.06;
+  const MAX_O = 0.96;
+
+  return MIN_O + (MAX_O - MIN_O) * eased;
 }
+
 
 function getWinnerPct(entry) {
   if (!entry) return null;
 
-  // If backend provides a direct winner vote pct, use it
   if (Number.isFinite(Number(entry.winnerVotePct))) {
     return Number(entry.winnerVotePct);
   }
@@ -98,28 +103,23 @@ function getWinnerPct(entry) {
   const winner = upperTrim(entry.winnerParty);
   if (!winner) return null;
 
-  // Typical structure in your tooltip code:
-  // entry.parties = { PAP: { votePct: 61.23, ... }, WP: { votePct: 38.77, ... } }
   const node = entry.parties && entry.parties[winner];
   const pct = node ? Number(node.votePct) : null;
 
   return Number.isFinite(pct) ? pct : null;
 }
 
-// Party colours (extend as you like)
+// Party colours
 const PARTY_META = {
   PAP: { colour: "#E53935", name: "People's Action Party" },
   WP: { colour: "#1E88E5", name: "Workers' Party" },
-
   PSP: { colour: "#FB8C00", name: "Progress Singapore Party" },
   SDP: { colour: "#43A047", name: "Singapore Democratic Party" },
   NSP: { colour: "#00897B", name: "National Solidarity Party" },
   SPP: { colour: "#8E24AA", name: "Singapore People's Party" },
   PPP: { colour: "#D81B60", name: "People's Power Party" },
-
   RDU: { colour: "#5E35B1", name: "Red Dot United" },
   SDA: { colour: "#3949AB", name: "Singapore Democratic Alliance" },
-
   PAR: { colour: "#6D4C41", name: "People's Alliance for Reform" },
   SUP: { colour: "#FDD835", name: "Singapore United Party" },
   INDEPENDENT: { colour: "#546E7A", name: "Independent" },
@@ -136,7 +136,6 @@ function colourForParty(partyCode) {
   const meta = PARTY_META[key];
   if (meta && meta.colour) return meta.colour;
 
-  // deterministic fallback for unexpected party codes
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {
     hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
@@ -150,7 +149,7 @@ function TypeaheadSelectBox({
   options,
   onSelect,
   placeholder,
-  direction, // "up" | "down"
+  direction,
   maxItems,
 }) {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -160,18 +159,12 @@ function TypeaheadSelectBox({
   const rootRef = React.useRef(null);
   const inputRef = React.useRef(null);
 
-  const selectedKey = String(value || "ALL")
-    .trim()
-    .toUpperCase();
+  const selectedKey = String(value || "ALL").trim().toUpperCase();
 
   const selectedLabel = React.useMemo(
     function () {
       const hit = options.find(function (o) {
-        return (
-          String(o.key || "")
-            .trim()
-            .toUpperCase() === selectedKey
-        );
+        return String(o.key || "").trim().toUpperCase() === selectedKey;
       });
       return hit ? String(hit.label) : placeholder || "ALL";
     },
@@ -182,9 +175,7 @@ function TypeaheadSelectBox({
 
   const filtered = React.useMemo(
     function () {
-      const q = String(query || "")
-        .trim()
-        .toUpperCase();
+      const q = String(query || "").trim().toUpperCase();
 
       const allOpt = options.find(function (o) {
         return String(o.key || "").toUpperCase() === "ALL";
@@ -332,8 +323,7 @@ function TypeaheadSelectBox({
           <div className="selectbox-items">
             {filtered.map(function (item, idx) {
               const isActive = idx === activeIndex;
-              const isSelected =
-                String(item.key || "").toUpperCase() === selectedKey;
+              const isSelected = String(item.key || "").toUpperCase() === selectedKey;
 
               return (
                 <button
@@ -366,7 +356,7 @@ function TypeaheadSelectBox({
     </div>
   );
 }
-// 2) Add this NEW component (put it above MapPage, no reuse of your existing callbacks/functions)
+
 function SidebarRecenterController({
   sidebarCollapsed,
   transitionMs,
@@ -381,18 +371,10 @@ function SidebarRecenterController({
   React.useEffect(
     function () {
       function pickGeo() {
-        if (
-          geojsonPrimary &&
-          Array.isArray(geojsonPrimary.features) &&
-          geojsonPrimary.features.length > 0
-        ) {
+        if (geojsonPrimary && Array.isArray(geojsonPrimary.features) && geojsonPrimary.features.length > 0) {
           return geojsonPrimary;
         }
-        if (
-          geojsonFallback &&
-          Array.isArray(geojsonFallback.features) &&
-          geojsonFallback.features.length > 0
-        ) {
+        if (geojsonFallback && Array.isArray(geojsonFallback.features) && geojsonFallback.features.length > 0) {
           return geojsonFallback;
         }
         return null;
@@ -400,9 +382,7 @@ function SidebarRecenterController({
 
       function recenterNow() {
         const geo = pickGeo();
-        if (!geo) {
-          return;
-        }
+        if (!geo) return;
 
         let bounds = null;
 
@@ -412,9 +392,7 @@ function SidebarRecenterController({
           bounds = null;
         }
 
-        if (!bounds || !bounds.isValid || !bounds.isValid()) {
-          return;
-        }
+        if (!bounds || !bounds.isValid || !bounds.isValid()) return;
 
         try {
           map.invalidateSize({ animate: false, pan: false });
@@ -432,10 +410,7 @@ function SidebarRecenterController({
 
         const leftPad = leftInset + pad;
 
-        const ms = Number.isFinite(Number(transitionMs))
-          ? Number(transitionMs)
-          : 0;
-
+        const ms = Number.isFinite(Number(transitionMs)) ? Number(transitionMs) : 0;
         const durationSec = ms > 0 ? Math.max(0.1, ms / 1000) : 0.25;
 
         map.fitBounds(bounds, {
@@ -451,9 +426,7 @@ function SidebarRecenterController({
         recenterNow();
       });
 
-      const ms2 = Number.isFinite(Number(transitionMs))
-        ? Number(transitionMs)
-        : 0;
+      const ms2 = Number.isFinite(Number(transitionMs)) ? Number(transitionMs) : 0;
 
       let timeoutId = null;
       if (ms2 > 0) {
@@ -464,9 +437,7 @@ function SidebarRecenterController({
 
       return function () {
         window.cancelAnimationFrame(rafId);
-        if (timeoutId !== null) {
-          window.clearTimeout(timeoutId);
-        }
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
       };
     },
     [
@@ -484,25 +455,61 @@ function SidebarRecenterController({
   return null;
 }
 
+/* ---------------------------
+   NEW: Toggle UI component
+---------------------------- */
+function BaseMapToggle({ value, onChange }) {
+  const isSimple = value === "simple";
+
+  return (
+    <div className="basemap-toggle" role="group" aria-label="Base map style">
+      <button
+        type="button"
+        className={isSimple ? "basemap-pill" : "basemap-pill is-active"}
+        onClick={function () {
+          if (typeof onChange === "function") onChange("default");
+        }}
+        aria-pressed={isSimple ? "false" : "true"}
+      >
+        Default
+      </button>
+
+      <button
+        type="button"
+        className={isSimple ? "basemap-pill is-active" : "basemap-pill"}
+        onClick={function () {
+          if (typeof onChange === "function") onChange("simple");
+        }}
+        aria-pressed={isSimple ? "true" : "false"}
+      >
+        Simple
+      </button>
+    </div>
+  );
+}
+
 export default function MapPage() {
   const years = useMemo(function () {
     return [2025, 2020, 2015, 2011, 2006];
   }, []);
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const SIDEBAR_WIDTH = 380;
   const TRANSITION_MS = 240;
   const sidebarShellRef = useRef(null);
-  // real measured width (so centring is accurate)
   const [sidebarWidthPx, setSidebarWidthPx] = useState(0);
   const HANDLE_WIDTH = 24;
-  const leftInsetPx = sidebarCollapsed
-    ? HANDLE_WIDTH
-    : sidebarWidthPx || SIDEBAR_WIDTH;
+  const leftInsetPx = sidebarCollapsed ? HANDLE_WIDTH : sidebarWidthPx || SIDEBAR_WIDTH;
 
   const [year, setYear] = useState(years.length > 0 ? years[0] : 2025);
 
+  // NEW: basemap style toggle
+  // "default" = normal OSM tiles
+  // "simple"  = low-detail "Carto Light (no labels)" style
+  const [baseMapStyle, setBaseMapStyle] = useState("default");
+
   // Filters
-  const [typeFilter, setTypeFilter] = useState("ALL"); // ALL | GRC | SMC
+  const [typeFilter, setTypeFilter] = useState("ALL");
   const [partyContestedFilter, setPartyContestedFilter] = useState("ALL");
   const [partyWinnerFilter, setPartyWinnerFilter] = useState("ALL");
   const [search, setSearch] = useState("ALL");
@@ -513,12 +520,10 @@ export default function MapPage() {
 
   // caches
   const [geoByYear, setGeoByYear] = useState({});
-  const [summaryByYear, setSummaryByYear] = useState({}); // Map keyed by UPPER constituency
-  const [partiesByYear, setPartiesByYear] = useState({}); // array
+  const [summaryByYear, setSummaryByYear] = useState({});
+  const [partiesByYear, setPartiesByYear] = useState({});
 
-  // sidebar + map instance (for invalidateSize)
   const [mapInstance, setMapInstance] = useState(null);
-  const savedViewRef = useRef(null);
   const sidebarRef = useRef(null);
 
   const DEFAULT_YEAR = years.length > 0 ? years[0] : 2025;
@@ -543,22 +548,16 @@ export default function MapPage() {
     setErrorText("");
 
     try {
-      // boundaries from MySQL via backend
       if (!geoByYear[y]) {
-        const res = await fetch(
-          `/api/boundaries?year=${encodeURIComponent(y)}`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: { Accept: "application/json" },
-          },
-        );
+        const res = await fetch(`/api/boundaries?year=${encodeURIComponent(y)}`, {
+          method: "GET",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
 
         const text = await res.text();
         if (!res.ok) {
-          throw new Error(
-            `Failed to load boundaries (${res.status}): ${text.slice(0, 200)}`,
-          );
+          throw new Error(`Failed to load boundaries (${res.status}): ${text.slice(0, 200)}`);
         }
 
         const geojson = JSON.parse(text);
@@ -570,35 +569,28 @@ export default function MapPage() {
         });
       }
 
-      // summary from MySQL via backend
       if (!summaryByYear[y]) {
-        const res = await fetch(
-          `/api/boundaries/summary?year=${encodeURIComponent(y)}`,
-          {
-            method: "GET",
-            credentials: "include",
-            headers: { Accept: "application/json" },
-          },
-        );
+        const res = await fetch(`/api/boundaries/summary?year=${encodeURIComponent(y)}`, {
+          method: "GET",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
 
         const text = await res.text();
         if (!res.ok) {
-          throw new Error(
-            `Failed to load summary (${res.status}): ${text.slice(0, 200)}`,
-          );
+          throw new Error(`Failed to load summary (${res.status}): ${text.slice(0, 200)}`);
         }
 
         const json = JSON.parse(text);
         const summaryObj = json && json.summary ? json.summary : {};
         const parties = json && Array.isArray(json.parties) ? json.parties : [];
 
-        // Map() keyed by UPPER constituency name:
-        // normalise ALL summary keys too
         const summaryMap = new Map(
           Object.entries(summaryObj).map(function ([k, v]) {
             return [normaliseConstituencyKey(k), v];
           }),
         );
+
         setSummaryByYear(function (prev) {
           const next = { ...prev };
           next[y] = summaryMap;
@@ -617,6 +609,7 @@ export default function MapPage() {
       setLoading(false);
     }
   }
+
   useEffect(
     function () {
       if (Number.isFinite(year)) {
@@ -629,11 +622,11 @@ export default function MapPage() {
   const activeGeo = geoByYear[year] || null;
   const activeSummary = summaryByYear[year] || new Map();
   const partyOptions = partiesByYear[year] || [];
+
   const legendParties = useMemo(
     function () {
       const list = Array.isArray(partyOptions) ? partyOptions.slice() : [];
 
-      // normalise + de-dupe
       const seen = new Set();
       const cleaned = [];
       for (const p of list) {
@@ -644,7 +637,6 @@ export default function MapPage() {
         cleaned.push(k);
       }
 
-      // PAP + WP first, then the rest alphabetical
       const head = [];
       const tail = [];
 
@@ -669,6 +661,7 @@ export default function MapPage() {
     },
     [partyOptions],
   );
+
   const constituencyOptions = React.useMemo(
     function () {
       if (!activeGeo || !Array.isArray(activeGeo.features)) {
@@ -698,6 +691,7 @@ export default function MapPage() {
     },
     [activeGeo],
   );
+
   const yearOptions = useMemo(
     function () {
       return years.map(function (y) {
@@ -753,10 +747,8 @@ export default function MapPage() {
     }
 
     measure();
-
     window.addEventListener("resize", measure);
 
-    // If supported, track width changes precisely
     let ro = null;
     if (typeof ResizeObserver !== "undefined" && sidebarShellRef.current) {
       ro = new ResizeObserver(() => {
@@ -771,7 +763,6 @@ export default function MapPage() {
     };
   }, []);
 
-  // Filtered boundaries: ONLY draw those that pass filters
   const filteredGeo = useMemo(
     function () {
       if (!activeGeo || !Array.isArray(activeGeo.features)) {
@@ -789,19 +780,16 @@ export default function MapPage() {
 
         const entry = activeSummary.get(nameKey) || null;
 
-        // Constituency search filter
         if (q && nameKey.indexOf(q) === -1) {
           return false;
         }
 
-        // Constituency type filter
         if (typeFilter !== "ALL") {
           if (inferredType !== typeFilter) {
             return false;
           }
         }
 
-        // Party contested filter: show constituencies where party appears in contested list
         if (partyContestedFilter !== "ALL") {
           const pKey = normaliseConstituencyKey(partyContestedFilter);
           if (!entry || !entry.parties || !entry.parties[pKey]) {
@@ -809,7 +797,6 @@ export default function MapPage() {
           }
         }
 
-        // Party winner filter
         if (partyWinnerFilter !== "ALL") {
           const wKey = normaliseConstituencyKey(partyWinnerFilter);
           if (!entry || upperTrim(entry.winnerParty) !== wKey) {
@@ -819,22 +806,17 @@ export default function MapPage() {
 
         return true;
       });
+
       if (outFeatures.length === 0) {
         return null;
       }
+
       return {
         ...activeGeo,
         features: outFeatures,
       };
     },
-    [
-      activeGeo,
-      activeSummary,
-      search,
-      typeFilter,
-      partyContestedFilter,
-      partyWinnerFilter,
-    ],
+    [activeGeo, activeSummary, search, typeFilter, partyContestedFilter, partyWinnerFilter],
   );
 
   const refitMapNow = React.useCallback(
@@ -842,9 +824,7 @@ export default function MapPage() {
       if (!mapInstance) return;
 
       const geoToFit =
-        filteredGeo &&
-        Array.isArray(filteredGeo.features) &&
-        filteredGeo.features.length > 0
+        filteredGeo && Array.isArray(filteredGeo.features) && filteredGeo.features.length > 0
           ? filteredGeo
           : activeGeo;
 
@@ -856,18 +836,11 @@ export default function MapPage() {
         // ignore
       }
 
-      fitToGeo(
-        mapInstance,
-        geoToFit,
-        leftInsetPx,
-        TRANSITION_MS,
-        shouldAnimate,
-      );
+      fitToGeo(mapInstance, geoToFit, leftInsetPx, TRANSITION_MS, shouldAnimate);
     },
     [mapInstance, filteredGeo, activeGeo, leftInsetPx, TRANSITION_MS],
   );
 
-  // Run once whenever inputs change (including collapse toggle)
   useEffect(() => {
     if (!mapInstance) return;
 
@@ -878,16 +851,8 @@ export default function MapPage() {
     return () => {
       window.cancelAnimationFrame(raf);
     };
-  }, [
-    mapInstance,
-    sidebarCollapsed,
-    leftInsetPx,
-    activeGeo,
-    filteredGeo,
-    refitMapNow,
-  ]);
+  }, [mapInstance, sidebarCollapsed, leftInsetPx, activeGeo, filteredGeo, refitMapNow]);
 
-  // Run again exactly when the sidebar transform transition finishes
   useEffect(() => {
     const el = sidebarShellRef.current;
     if (!el) return;
@@ -904,118 +869,99 @@ export default function MapPage() {
     };
   }, [mapInstance, refitMapNow]);
 
-  // Styles: by default, winner party colour;
- const geoStyle = useMemo(
-  function () {
-    return function (feature) {
-      const props = feature && feature.properties ? feature.properties : {};
-      const displayName = getBoundaryName(props);
+  const geoStyle = useMemo(
+    function () {
+      return function (feature) {
+        const props = feature && feature.properties ? feature.properties : {};
+        const displayName = getBoundaryName(props);
+        const nameKey = normaliseConstituencyKey(displayName);
 
-      // MUST match how you keyed activeSummary
-      const nameKey = normaliseConstituencyKey(displayName);
+        const entry = activeSummary.get(nameKey) || null;
+        const winner = entry && entry.winnerParty ? String(entry.winnerParty) : "";
 
-      const entry = activeSummary.get(nameKey) || null;
-      const winner = entry && entry.winnerParty ? String(entry.winnerParty) : "";
+        const baseFill = winner ? colourForParty(winner) : "#ffffff";
+        const baseStroke = winner ? colourForParty(winner) : "#ffffff";
 
-      const baseFill = winner ? colourForParty(winner) : "#ffffff";
-      const baseStroke = winner ? colourForParty(winner) : "#ffffff";
+        const winnerPct = getWinnerPct(entry);
+        const fillOpacity = Number.isFinite(Number(winnerPct))
+          ? opacityFromWinnerPct(winnerPct)
+          : 0.25;
 
-      const winnerPct = getWinnerPct(entry); // 0–100
-      const fillOpacity = Number.isFinite(Number(winnerPct))
-        ? opacityFromWinnerPct(winnerPct)
-        : 0.25;
-
-      return {
-        color: baseStroke,
-        weight: 2,
-        opacity: 1,
-        fillColor: baseFill,
-        fillOpacity: fillOpacity,
+        return {
+          color: baseStroke,
+          weight: 2,
+          opacity: 1,
+          fillColor: baseFill,
+          fillOpacity: fillOpacity,
+        };
       };
-    };
-  },
-  [activeSummary],
-);
+    },
+    [activeSummary],
+  );
 
+  function onEachFeature(feature, layer) {
+    const props = feature && feature.properties ? feature.properties : {};
+    const displayName = getBoundaryName(props);
 
- function onEachFeature(feature, layer) {
-  const props = feature && feature.properties ? feature.properties : {};
-  const displayName = getBoundaryName(props);
+    const nameKey = normaliseConstituencyKey(displayName);
+    const inferredType = getBoundaryTypeFromName(props);
 
-  const nameKey = normaliseConstituencyKey(displayName);
-  const inferredType = getBoundaryTypeFromName(props);
+    const entry = activeSummary.get(nameKey) || null;
+    const winner = entry && entry.winnerParty ? String(entry.winnerParty) : "Unknown";
 
-  const entry = activeSummary.get(nameKey) || null;
+    let partyLinesHtml = "";
 
-  const winner =
-    entry && entry.winnerParty ? String(entry.winnerParty) : "Unknown";
+    if (entry && entry.parties) {
+      const parties = Object.keys(entry.parties);
 
-  // Build tooltip HTML (keep your existing code)
-  let partyLinesHtml = "";
+      parties.sort(function (a, b) {
+        const av = Number(entry.parties[a]?.votePct ?? -1);
+        const bv = Number(entry.parties[b]?.votePct ?? -1);
+        return bv - av;
+      });
 
-  if (entry && entry.parties) {
-    const parties = Object.keys(entry.parties);
+      partyLinesHtml = parties
+        .map(function (p) {
+          const pctVal = Number(entry.parties[p]?.votePct);
+          const pctText = Number.isFinite(pctVal) ? `${pctVal.toFixed(2)}%` : "";
+          return `<div style="font-size:12px; margin-top:2px;"><b>${pctText}</b> ${p}</div>`;
+        })
+        .join("");
+    }
 
-    parties.sort(function (a, b) {
-      const av = Number(entry.parties[a]?.votePct ?? -1);
-      const bv = Number(entry.parties[b]?.votePct ?? -1);
-      return bv - av;
+    const html = `<div style="font-weight:800; margin-bottom:6px;">${displayName}</div>
+      <div style="font-size:12px;">Year: <b>${year}</b></div>
+      <div style="font-size:12px;">Type: <b>${inferredType || "Unknown"}</b></div>
+      <div style="font-size:12px; margin-top:6px;">Winner: <b>${winner}</b></div>
+      <div style="margin-top:6px;">${partyLinesHtml}</div>`;
+
+    layer.bindTooltip(html, { sticky: true, direction: "auto" });
+
+    const base = geoStyle(feature);
+
+    layer.on("mouseover", function () {
+      layer.setStyle({
+        ...base,
+        weight: 4,
+        opacity: 1,
+      });
     });
 
-    partyLinesHtml = parties
-      .map(function (p) {
-        const pctVal = Number(entry.parties[p]?.votePct);
-        const pctText = Number.isFinite(pctVal)
-          ? `${pctVal.toFixed(2)}%`
-          : "";
-        return `<div style="font-size:12px; margin-top:2px;"><b>${pctText}</b> ${p}</div>`;
-      })
-      .join("");
+    layer.on("mouseout", function () {
+      layer.setStyle(base);
+    });
   }
 
-  const html = `<div style="font-weight:800; margin-bottom:6px;">${displayName}</div>
-    <div style="font-size:12px;">Year: <b>${year}</b></div>
-    <div style="font-size:12px;">Type: <b>${inferredType || "Unknown"}</b></div>
-    <div style="font-size:12px; margin-top:6px;">Winner: <b>${winner}</b></div>
-    <div style="margin-top:6px;">${partyLinesHtml}</div>`;
+  const matchedCount = filteredGeo && Array.isArray(filteredGeo.features) ? filteredGeo.features.length : 0;
+  const totalCount = activeGeo && Array.isArray(activeGeo.features) ? activeGeo.features.length : 0;
 
-  layer.bindTooltip(html, { sticky: true, direction: "auto" });
+  const handleX = sidebarCollapsed ? Math.round(HANDLE_WIDTH / 2) : sidebarWidthPx || SIDEBAR_WIDTH;
 
-  // Capture initial style so we can restore it perfectly
-  const base = geoStyle(feature);
-
-  layer.on("mouseover", function () {
-    layer.setStyle({
-      ...base,
-      weight: 4,        // thicker border
-      opacity: 1,       // keep border opacity
-      // DO NOT touch fillOpacity here
-    });
-  });
-
-  layer.on("mouseout", function () {
-    layer.setStyle(base);
-  });
-}
-
-  const matchedCount =
-    filteredGeo && Array.isArray(filteredGeo.features)
-      ? filteredGeo.features.length
-      : 0;
-  const totalCount =
-    activeGeo && Array.isArray(activeGeo.features)
-      ? activeGeo.features.length
-      : 0;
-
-  const handleX = sidebarCollapsed
-    ? Math.round(HANDLE_WIDTH / 2)
-    : sidebarWidthPx || SIDEBAR_WIDTH;
   const geoJsonKey = useMemo(
     function () {
       const q = upperTrim(search);
       const summarySize = activeSummary ? activeSummary.size : 0;
 
-      // This forces a remount whenever filters/search/year/summary changes
       return [
         year,
         typeFilter,
@@ -1023,20 +969,20 @@ export default function MapPage() {
         upperTrim(partyWinnerFilter),
         q,
         summarySize,
-        matchedCount, // optional but helps when geometry set changes
+        matchedCount,
       ].join("|");
     },
-    [
-      year,
-      typeFilter,
-      partyContestedFilter,
-      partyWinnerFilter,
-      search,
-      activeSummary,
-      matchedCount,
-    ],
+    [year, typeFilter, partyContestedFilter, partyWinnerFilter, search, activeSummary, matchedCount],
   );
+
   const navBarHeight = 61;
+
+  // NEW: tile URLs
+  const TILE_DEFAULT = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+  // "Simple" base layer: Carto light without labels (cleaner). If you prefer another, swap URL.
+  const TILE_SIMPLE = "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png";
+  const tileUrl = baseMapStyle === "simple" ? TILE_SIMPLE : TILE_DEFAULT;
 
   return (
     <div
@@ -1044,10 +990,8 @@ export default function MapPage() {
         position: "relative",
         height: `calc(100vh - ${navBarHeight}px)`,
         width: "100%",
-        // overflow: "hidden",
       }}
     >
-      {/* Map layer (full size) */}
       <div
         style={{
           position: "absolute",
@@ -1075,20 +1019,44 @@ export default function MapPage() {
             geojsonFallback={activeGeo}
           />
 
+          {/* Base map toggles between Default and Simple */}
           <TileLayer
-            attribution="&copy; OpenStreetMap contributors"
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution={
+              baseMapStyle === "simple"
+                ? "&copy; OpenStreetMap contributors &copy; CARTO"
+                : "&copy; OpenStreetMap contributors"
+            }
+            url={tileUrl}
           />
 
           {filteredGeo ? (
-            <GeoJSON
-              key={geoJsonKey}
-              data={filteredGeo}
-              style={geoStyle}
-              onEachFeature={onEachFeature}
-            />
+            <GeoJSON key={geoJsonKey} data={filteredGeo} style={geoStyle} onEachFeature={onEachFeature} />
           ) : null}
         </MapContainer>
+
+        {/* NEW: basemap toggle on top-right */}
+{/* basemap toggle floating top-right */}
+<div
+  className="basemap-toggle-wrap"
+  aria-label="Base map style toggle"
+  style={{
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 9600,
+    pointerEvents: "none",
+  }}
+>
+  <div style={{ pointerEvents: "auto" }}>
+    <BaseMapToggle
+      value={baseMapStyle}
+      onChange={function (next) {
+        setBaseMapStyle(String(next));
+      }}
+    />
+  </div>
+</div>
+
 
         {/* Legend */}
         <div className="map-legend" aria-label="Party legend">
@@ -1097,10 +1065,7 @@ export default function MapPage() {
             {legendParties.map(function (p) {
               return (
                 <div key={p} className="map-legend-item" title={partyLabel(p)}>
-                  <span
-                    className="map-legend-dot"
-                    style={{ background: colourForParty(p) }}
-                  />
+                  <span className="map-legend-dot" style={{ background: colourForParty(p) }} />
                   <span className="map-legend-code">{p}</span>
                 </div>
               );
@@ -1119,9 +1084,7 @@ export default function MapPage() {
           bottom: 0,
           width: SIDEBAR_WIDTH,
           zIndex: 9000,
-          transform: sidebarCollapsed
-            ? `translateX(-${SIDEBAR_WIDTH}px)`
-            : "translateX(0px)",
+          transform: sidebarCollapsed ? `translateX(-${SIDEBAR_WIDTH}px)` : "translateX(0px)",
           transition: `transform ${TRANSITION_MS}ms ease`,
         }}
       >
@@ -1139,16 +1102,10 @@ export default function MapPage() {
         >
           {sidebarCollapsed ? null : (
             <div className="h-full">
-              {/* your existing sidebar content EXACTLY as-is */}
               <div className="map-sidebar-top">
                 <div className="map-sidebar-top-row">
                   <div className="map-sidebar-title">Filters</div>
-                  <button
-                    type="button"
-                    className="filters-reset-btn"
-                    onClick={resetFilters}
-                    title="Reset filters"
-                  >
+                  <button type="button" className="filters-reset-btn" onClick={resetFilters} title="Reset filters">
                     Reset
                   </button>
                 </div>
@@ -1225,14 +1182,11 @@ export default function MapPage() {
 
                 <div className="map-sidebar-status" style={{ marginTop: 12 }}>
                   {loading ? <div>Loading data…</div> : null}
-                  {errorText ? (
-                    <div style={{ color: "crimson" }}>{errorText}</div>
-                  ) : null}
+                  {errorText ? <div style={{ color: "crimson" }}>{errorText}</div> : null}
 
                   {!loading && !errorText ? (
                     <div>
-                      Matched areas: <b>{matchedCount}</b> / <b>{totalCount}</b>
-                      .
+                      Matched areas: <b>{matchedCount}</b> / <b>{totalCount}</b>.
                     </div>
                   ) : null}
                 </div>
@@ -1242,6 +1196,7 @@ export default function MapPage() {
         </aside>
       </div>
 
+      {/* Collapse handle */}
       <div
         style={{
           position: "absolute",
