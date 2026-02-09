@@ -1,6 +1,6 @@
 // pages/MapPage.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { MapContainer, TileLayer, GeoJSON } from "react-leaflet";
+import { MapContainer, TileLayer, GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 
 function upperTrim(value) {
@@ -326,6 +326,123 @@ function TypeaheadSelectBox({
       ) : null}
     </div>
   );
+}
+// 2) Add this NEW component (put it above MapPage, no reuse of your existing callbacks/functions)
+function SidebarRecenterController({
+  sidebarCollapsed,
+  transitionMs,
+  sidebarWidthPx,
+  sidebarWidthDefault,
+  handleWidth,
+  geojsonPrimary,
+  geojsonFallback,
+}) {
+  const map = useMap();
+
+  React.useEffect(
+    function () {
+      function pickGeo() {
+        if (
+          geojsonPrimary &&
+          Array.isArray(geojsonPrimary.features) &&
+          geojsonPrimary.features.length > 0
+        ) {
+          return geojsonPrimary;
+        }
+        if (
+          geojsonFallback &&
+          Array.isArray(geojsonFallback.features) &&
+          geojsonFallback.features.length > 0
+        ) {
+          return geojsonFallback;
+        }
+        return null;
+      }
+
+      function recenterNow() {
+        const geo = pickGeo();
+        if (!geo) {
+          return;
+        }
+
+        let bounds = null;
+
+        try {
+          bounds = L.geoJSON(geo).getBounds();
+        } catch (e) {
+          bounds = null;
+        }
+
+        if (!bounds || !bounds.isValid || !bounds.isValid()) {
+          return;
+        }
+
+        try {
+          map.invalidateSize({ animate: false, pan: false });
+        } catch (e) {
+          // ignore
+        }
+
+        const pad = 24;
+
+        const leftInset =
+          sidebarCollapsed === true
+            ? Math.max(0, Number(handleWidth || 0))
+            : Math.max(0, Number(sidebarWidthPx || 0)) ||
+              Math.max(0, Number(sidebarWidthDefault || 0));
+
+        const leftPad = leftInset + pad;
+
+        const ms = Number.isFinite(Number(transitionMs))
+          ? Number(transitionMs)
+          : 0;
+
+        const durationSec = ms > 0 ? Math.max(0.1, ms / 1000) : 0.25;
+
+        map.fitBounds(bounds, {
+          paddingTopLeft: [leftPad, pad],
+          paddingBottomRight: [pad, pad],
+          animate: true,
+          duration: durationSec,
+          maxZoom: 12,
+        });
+      }
+
+      const rafId = window.requestAnimationFrame(function () {
+        recenterNow();
+      });
+
+      const ms2 = Number.isFinite(Number(transitionMs))
+        ? Number(transitionMs)
+        : 0;
+
+      let timeoutId = null;
+      if (ms2 > 0) {
+        timeoutId = window.setTimeout(function () {
+          recenterNow();
+        }, ms2);
+      }
+
+      return function () {
+        window.cancelAnimationFrame(rafId);
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+      };
+    },
+    [
+      map,
+      sidebarCollapsed,
+      transitionMs,
+      sidebarWidthPx,
+      sidebarWidthDefault,
+      handleWidth,
+      geojsonPrimary,
+      geojsonFallback,
+    ],
+  );
+
+  return null;
 }
 
 export default function MapPage() {
@@ -894,6 +1011,16 @@ export default function MapPage() {
             setMapInstance(map);
           }}
         >
+          <SidebarRecenterController
+            sidebarCollapsed={sidebarCollapsed}
+            transitionMs={TRANSITION_MS}
+            sidebarWidthPx={sidebarWidthPx}
+            sidebarWidthDefault={SIDEBAR_WIDTH}
+            handleWidth={HANDLE_WIDTH}
+            geojsonPrimary={filteredGeo}
+            geojsonFallback={activeGeo}
+          />
+
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
