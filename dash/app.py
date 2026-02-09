@@ -9,6 +9,77 @@ from dash.exceptions import PreventUpdate
 import html as pyhtml
 
 from datetime import datetime, date
+import hashlib
+
+PARTY_META = {
+    "PAP": {"colour": "#E53935", "name": "People's Action Party"},
+    "WP": {"colour": "#1E88E5", "name": "Workers' Party"},
+    "PSP": {"colour": "#FB8C00", "name": "Progress Singapore Party"},
+    "SDP": {"colour": "#43A047", "name": "Singapore Democratic Party"},
+    "NSP": {"colour": "#00897B", "name": "National Solidarity Party"},
+    "SPP": {"colour": "#8E24AA", "name": "Singapore People's Party"},
+    "PPP": {"colour": "#D81B60", "name": "People's Power Party"},
+    "RDU": {"colour": "#5E35B1", "name": "Red Dot United"},
+    "SDA": {"colour": "#3949AB", "name": "Singapore Democratic Alliance"},
+    "PAR": {"colour": "#6D4C41", "name": "People's Alliance for Reform"},
+    "SUP": {"colour": "#FDD835", "name": "Singapore United Party"},
+    "INDEPENDENT": {"colour": "#546E7A", "name": "Independent"},
+}
+
+# Keep for parties not in PARTY_META
+DEFAULT_PARTY_COLORS = [
+    "#F4D03F",
+    "#1ABC9C",
+    "#9B59B6",
+    "#E67E22",
+    "#2ECC71",
+    "#E056FD",
+    "#00CEC9",
+    "#D35400",
+    "#6C5CE7",
+    "#F368E0",
+    "#10AC84",
+    "#C8D6E5",
+    "#FF6B6B",
+    "#48DBFB",
+    "#FECA57",
+    "#5F27CD",
+]
+
+def normalise_party_key(value):
+    s = str(value or "").strip().upper()
+    if s in ["IND", "INDEP", "INDEPENDENT"]:
+        return "INDEPENDENT"
+    return s
+
+def stable_fallback_color(party_key):
+    if not party_key:
+        return "#95A5A6"
+    digest = hashlib.md5(party_key.encode("utf-8")).hexdigest()
+    idx = int(digest[:8], 16) % len(DEFAULT_PARTY_COLORS)
+    return DEFAULT_PARTY_COLORS[idx]
+
+def get_party_color(party, used_colors=None):
+    party_key = normalise_party_key(party)
+
+    meta = PARTY_META.get(party_key)
+    if meta and meta.get("colour"):
+        return str(meta["colour"])
+
+    # deterministic fallback per party
+    return stable_fallback_color(party_key)
+
+
+def hex_to_rgba(hex_colour, alpha):
+    s = str(hex_colour or "").strip().lstrip("#")
+    if len(s) == 3:
+        s = f"{s[0]}{s[0]}{s[1]}{s[1]}{s[2]}{s[2]}"
+    if len(s) != 6:
+        return f"rgba(149,165,166,{alpha})"
+    r = int(s[0:2], 16)
+    g = int(s[2:4], 16)
+    b = int(s[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
 
 def parse_mysql_date(value):
     if value is None:
@@ -36,18 +107,33 @@ def format_pretty_date(value):
     return f"{d.day} {d.strftime('%B')} {d.year}"
 
 def party_span(abbr, party_map):
-    abbr = str(abbr or "").strip()
-    if not abbr:
+    abbr_raw = str(abbr or "").strip()
+    if not abbr_raw:
         return "—"
-    full = str(party_map.get(abbr, "") or "").strip()
 
-    # Native tooltip
-    title = pyhtml.escape(full if full else abbr, quote=True)
+    party_key = normalise_party_key(abbr_raw)
+    colour = get_party_color(party_key)
 
-    # Visible text
-    text = pyhtml.escape(abbr)
+    full = str(party_map.get(party_key, "") or "").strip()
+    if not full:
+        meta = PARTY_META.get(party_key)
+        if meta:
+            full = str(meta.get("name") or "").strip()
 
-    return f"<span class='party-pill' title='{title}'>{text}</span>"
+    title = pyhtml.escape(full if full else party_key, quote=True)
+    text = pyhtml.escape(party_key)
+
+    bg = hex_to_rgba(colour, 0.18)
+    border = hex_to_rgba(colour, 0.45)
+
+    style = (
+        f"background:{bg};"
+        f"border:1px solid {border};"
+        f"color:rgba(255,255,255,0.92);"
+    )
+    style_attr = pyhtml.escape(style, quote=True)
+
+    return f"<span class='party-pill' style='{style_attr}' title='{title}'>{text}</span>"
 
 
 def party_list_spans(abbr_list, party_map):
@@ -107,39 +193,6 @@ PARTY_COLOR_MAP = {
     "PAP": "#E74C3C",  # red
     "WP":  "#2E86DE",  # blue
 }
-
-# High-contrast palette for dark backgrounds (distinct hues)
-DEFAULT_PARTY_COLORS = [
-    "#F4D03F",  # yellow
-    "#1ABC9C",  # teal
-    "#9B59B6",  # purple
-    "#E67E22",  # orange
-    "#2ECC71",  # green
-    "#E056FD",  # magenta
-    "#00CEC9",  # cyan
-    "#D35400",  # deep orange
-    "#6C5CE7",  # indigo
-    "#F368E0",  # pink
-    "#10AC84",  # green-teal
-    "#C8D6E5",  # light grey-blue
-    "#FF6B6B",  # coral
-    "#48DBFB",  # bright cyan-blue
-    "#FECA57",  # golden
-    "#5F27CD",  # violet
-]
-
-def get_party_color(party, used_colors):
-    party = str(party or "").strip()
-
-    if party in PARTY_COLOR_MAP:
-        return PARTY_COLOR_MAP[party]
-
-    for c in DEFAULT_PARTY_COLORS:
-        if c not in used_colors and c not in PARTY_COLOR_MAP.values():
-            used_colors.add(c)
-            return c
-
-    return "#95A5A6"
 
 
 BACKEND_BASE = os.getenv("BACKEND_BASE", "http://localhost:4000")
@@ -240,9 +293,19 @@ def build_vote_bar(parties):
 
     for p in parties:
         party = p.get("party") or ""
+        party_key = normalise_party_key(party)
+        colour = get_party_color(party_key, None)
+
         vote_count = p.get("vote_count")
         vote_share = p.get("vote_share")
-        full_name = p.get("party_full_name") or party
+
+        full_name = p.get("party_full_name")
+        if not full_name:
+            meta = PARTY_META.get(party_key)
+            if meta:
+                full_name = meta.get("name")
+        if not full_name:
+            full_name = party_key or party or "—"
 
         if vote_count is None:
             vote_count = 0
@@ -258,26 +321,25 @@ def build_vote_bar(parties):
 
         fig.add_trace(
             go.Bar(
-                name=party,
-                x=[party],
+                name=party_key or party,
+                x=[party_key or party],
                 y=[vote_count],
                 hovertext=[hover],
                 hoverinfo="text",
+                marker=dict(color=colour),  # NEW
             )
         )
 
+    # keep the rest of your layout/hoverlabel as-is...
     fig.update_layout(
         title="Votes by party",
         margin=dict(l=26, r=26, t=56, b=46),
         height=200,
-
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(size=12, color="rgba(255,255,255,0.85)", weight=700),
-
         barmode="group",
         showlegend=False,
-
         xaxis=dict(
             title="Party",
             gridcolor="rgba(255,255,255,0.08)",
@@ -301,7 +363,6 @@ def build_vote_bar(parties):
     )
 
     return fig
-
 
 
 def build_elector_pie(elector):
@@ -1188,7 +1249,9 @@ def update_table(years, winners, contesting, types, constituencies, options_data
         return str(len(rows)), table_data
 
 
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc(), flush=True)
         return "—", []
 
 @app.callback(
