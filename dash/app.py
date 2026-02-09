@@ -824,13 +824,32 @@ app.validation_layout = html.Div(
         render_summary_tab(),
     ]
 )
-
 @app.callback(
     Output("tbl", "style_data_conditional"),
     Input("store-active-row", "data"),
 )
 def style_selected_row(active_row):
+    base_bg = "rgba(50, 49, 49, 0.78)"
+    base_border = "1px solid rgba(255,255,255,0.10)"
+    base_color = "rgba(255,255,255,0.88)"
+    selected_bg = "rgba(50, 49, 49, 0.38)"
+    selected_border = "1px solid rgba(33,212,253,0.35)"
+
     styles = [
+        # Disable the default active/selected cell highlight (pink)
+        {
+            "if": {"state": "active"},
+            "backgroundColor": base_bg,
+            "border": base_border,
+            "color": base_color,
+        },
+        {
+            "if": {"state": "selected"},
+            "backgroundColor": selected_bg,
+            "border": selected_border,
+            "color": "rgba(255,255,255,0.98)",
+        },
+
         # keep margin formatting
         {
             "if": {"column_id": "margin_pct"},
@@ -839,31 +858,36 @@ def style_selected_row(active_row):
     ]
 
     if isinstance(active_row, int) and active_row >= 0:
-        selected_bg = "rgba(50, 49, 49, 0.38)"
-        selected_border = "1px solid rgba(33,212,253,0.35)"
 
         # whole row selected
-        styles.insert(
-            0,
+        styles.append(
             {
                 "if": {"row_index": active_row},
                 "backgroundColor": selected_bg,
                 "border": selected_border,
                 "color": "rgba(255,255,255,0.98)",
-            },
+            }
         )
 
-        # disable hover effect for the selected row by forcing same styles on hover
-        styles.insert(
-            1,
+        # keep selected row styling on hover
+        styles.append(
             {
                 "if": {"state": "hover", "row_index": active_row},
                 "backgroundColor": selected_bg,
                 "border": selected_border,
                 "color": "rgba(255,255,255,0.98)",
-            },
+            }
         )
 
+        # ensure the active cell inside the selected row does NOT change colour
+        styles.append(
+            {
+                "if": {"state": "active", "row_index": active_row},
+                "backgroundColor": base_bg,
+                "border": base_border,
+                "color": base_color,
+            }
+        )
 
     return styles
 
@@ -1034,11 +1058,16 @@ def init_filters(options_data, _reset_clicks):
     )
 @app.callback(
     Output("tbl", "active_cell"),
+    Output("tbl", "selected_cells"),
+    Input("store-expanded", "data"),
+    Input("store-active-row", "data"),
+    Input("btn-close-details", "n_clicks"),
     Input("btn-reset-filters", "n_clicks"),
-    prevent_initial_call=True,
+    Input("boot", "n_intervals"),
 )
-def reset_table_selection(_n):
-    return None
+def clear_table_focus(_expanded, _active_row, _close, _reset, _boot):
+    return None, []
+
 
 @app.callback(
     Output("dd-types", "value"),
