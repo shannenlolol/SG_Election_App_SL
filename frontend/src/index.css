@@ -719,3 +719,25 @@ select.input {
   outline: 2px solid rgba(33,212,253,0.55);
   outline-offset: 2px;
 }
+/* OPAQUE DARK SIDEBAR (no blur / no translucency) */
+.map-sidebar,
+.map-sidebar.open,
+.map-sidebar.collapsed,
+.map-sidebar-top,
+.map-sidebar-body {
+  background: #0b1220 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Optional: border / text */
+.map-sidebar {
+  color: rgba(255, 255, 255, 0.92) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+/* If you had a glass gradient overlay anywhere */
+.map-sidebar::before,
+.map-sidebar::after {
+  content: none !important;
+}

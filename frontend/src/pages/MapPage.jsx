@@ -8,7 +8,7 @@ function upperTrim(value) {
     .trim()
     .toUpperCase();
 }
-function fitToGeo(map, geojson, isSidebarOpen) {
+function fitToGeo(map, geojson, leftInsetPx, transitionMs, shouldAnimate) {
   if (!map) return;
   if (
     !geojson ||
@@ -20,18 +20,26 @@ function fitToGeo(map, geojson, isSidebarOpen) {
 
   const layer = L.geoJSON(geojson);
   const bounds = layer.getBounds();
+  if (!bounds || !bounds.isValid || !bounds.isValid()) return;
 
-  if (!bounds || !bounds.isValid || !bounds.isValid()) {
-    return;
+  const pad = 24;
+  const leftPad = Math.max(0, Number(leftInsetPx || 0)) + pad;
+
+  const durationSec = Number.isFinite(Number(transitionMs))
+    ? Math.max(0.1, Number(transitionMs) / 1000)
+    : 0.25;
+
+  try {
+    map.stop();
+  } catch (e) {
+    // ignore
   }
-
-  const leftPad = isSidebarOpen ? 380 : 60; // tweak if your sidebar width differs
-  const pad = 40;
 
   map.fitBounds(bounds, {
     paddingTopLeft: [leftPad, pad],
     paddingBottomRight: [pad, pad],
-    animate: false,
+    animate: Boolean(shouldAnimate),
+    duration: durationSec,
     maxZoom: 12,
   });
 }
@@ -97,6 +105,7 @@ function colourForParty(partyCode) {
   const hue = hash % 360;
   return `hsl(${hue} 75% 50%)`;
 }
+
 function TypeaheadSelectBox({
   value,
   options,
@@ -323,6 +332,16 @@ export default function MapPage() {
   const years = useMemo(function () {
     return [2025, 2020, 2015, 2011, 2006];
   }, []);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const SIDEBAR_WIDTH = 380;
+  const TRANSITION_MS = 240;
+  const sidebarShellRef = useRef(null);
+  // real measured width (so centring is accurate)
+  const [sidebarWidthPx, setSidebarWidthPx] = useState(0);
+  const HANDLE_WIDTH = 28;
+  const leftInsetPx = sidebarCollapsed
+    ? HANDLE_WIDTH
+    : sidebarWidthPx || SIDEBAR_WIDTH;
 
   const [year, setYear] = useState(years.length > 0 ? years[0] : 2025);
 
@@ -342,12 +361,9 @@ export default function MapPage() {
   const [partiesByYear, setPartiesByYear] = useState({}); // array
 
   // sidebar + map instance (for invalidateSize)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [mapInstance, setMapInstance] = useState(null);
   const savedViewRef = useRef(null);
-  const lastFitKeyRef = useRef("");
   const sidebarRef = useRef(null);
-  const geoLayerRef = useRef(null); // optional, if you want access later
 
   const DEFAULT_YEAR = years.length > 0 ? years[0] : 2025;
 
@@ -445,20 +461,6 @@ export default function MapPage() {
       setLoading(false);
     }
   }
-
-  function handleToggleSidebar() {
-    if (mapInstance) {
-      savedViewRef.current = {
-        center: mapInstance.getCenter(),
-        zoom: mapInstance.getZoom(),
-      };
-    }
-
-    setIsSidebarOpen(function (v) {
-      return !v;
-    });
-  }
-
   useEffect(
     function () {
       if (Number.isFinite(year)) {
@@ -540,11 +542,14 @@ export default function MapPage() {
     },
     [activeGeo],
   );
-  const yearOptions = useMemo(function () {
-    return years.map(function (y) {
-      return { key: String(y), label: String(y) };
-    });
-  }, [years]);
+  const yearOptions = useMemo(
+    function () {
+      return years.map(function (y) {
+        return { key: String(y), label: String(y) };
+      });
+    },
+    [years],
+  );
 
   const typeOptions = React.useMemo(function () {
     return [
@@ -580,6 +585,35 @@ export default function MapPage() {
     },
     [partyOptions],
   );
+
+  useEffect(() => {
+    function measure() {
+      const el = sidebarShellRef.current;
+      if (!el) return;
+      const w = el.getBoundingClientRect().width;
+      if (Number.isFinite(w)) {
+        setSidebarWidthPx(Math.max(0, Math.round(w)));
+      }
+    }
+
+    measure();
+
+    window.addEventListener("resize", measure);
+
+    // If supported, track width changes precisely
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined" && sidebarShellRef.current) {
+      ro = new ResizeObserver(() => {
+        measure();
+      });
+      ro.observe(sidebarShellRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", measure);
+      if (ro) ro.disconnect();
+    };
+  }, []);
 
   // Filtered boundaries: ONLY draw those that pass filters
   const filteredGeo = useMemo(
@@ -646,34 +680,73 @@ export default function MapPage() {
       partyWinnerFilter,
     ],
   );
-  // IMPORTANT: when sidebar toggles, Leaflet needs a resize invalidate after the CSS transition
-  useEffect(
-    function () {
+
+  const refitMapNow = React.useCallback(
+    function (shouldAnimate) {
       if (!mapInstance) return;
 
-      const timer = window.setTimeout(function () {
-        try {
-          mapInstance.invalidateSize();
+      const geoToFit =
+        filteredGeo &&
+        Array.isArray(filteredGeo.features) &&
+        filteredGeo.features.length > 0
+          ? filteredGeo
+          : activeGeo;
 
-          const geoToFit =
-            filteredGeo &&
-            Array.isArray(filteredGeo.features) &&
-            filteredGeo.features.length > 0
-              ? filteredGeo
-              : activeGeo;
+      if (!geoToFit) return;
 
-          fitToGeo(mapInstance, geoToFit, isSidebarOpen);
-        } catch (e) {
-          // ignore
-        }
-      }, 320);
+      try {
+        mapInstance.invalidateSize({ animate: false, pan: false });
+      } catch (e) {
+        // ignore
+      }
 
-      return function () {
-        window.clearTimeout(timer);
-      };
+      fitToGeo(
+        mapInstance,
+        geoToFit,
+        leftInsetPx,
+        TRANSITION_MS,
+        shouldAnimate,
+      );
     },
-    [isSidebarOpen, mapInstance, filteredGeo, activeGeo],
+    [mapInstance, filteredGeo, activeGeo, leftInsetPx, TRANSITION_MS],
   );
+
+  // Run once whenever inputs change (including collapse toggle)
+  useEffect(() => {
+    if (!mapInstance) return;
+
+    const raf = window.requestAnimationFrame(() => {
+      refitMapNow(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+    };
+  }, [
+    mapInstance,
+    sidebarCollapsed,
+    leftInsetPx,
+    activeGeo,
+    filteredGeo,
+    refitMapNow,
+  ]);
+
+  // Run again exactly when the sidebar transform transition finishes
+  useEffect(() => {
+    const el = sidebarShellRef.current;
+    if (!el) return;
+    if (!mapInstance) return;
+
+    function onEnd(e) {
+      if (e.propertyName !== "transform") return;
+      refitMapNow(true);
+    }
+
+    el.addEventListener("transitionend", onEnd);
+    return () => {
+      el.removeEventListener("transitionend", onEnd);
+    };
+  }, [mapInstance, refitMapNow]);
 
   // Styles: by default, winner party colour;
   const geoStyle = useMemo(
@@ -753,123 +826,6 @@ export default function MapPage() {
       layer.setStyle({ weight: 2, fillOpacity: 0.35 });
     });
   }
-  useEffect(
-    function () {
-      if (!mapInstance) return;
-
-      // Prefer fitting to filtered boundaries when filters are active.
-      // If filtered is empty, fall back to full year boundaries.
-      const geoToFit =
-        filteredGeo &&
-        Array.isArray(filteredGeo.features) &&
-        filteredGeo.features.length > 0
-          ? filteredGeo
-          : activeGeo;
-
-      // Fit only when the "meaningful view" changes (prevents constant refitting).
-      const fitKey = JSON.stringify({
-        year,
-        typeFilter,
-        partyContestedFilter,
-        partyWinnerFilter,
-        search,
-        sidebar: isSidebarOpen ? 1 : 0,
-        geoCount:
-          geoToFit && Array.isArray(geoToFit.features)
-            ? geoToFit.features.length
-            : 0,
-      });
-
-      if (fitKey === lastFitKeyRef.current) {
-        return;
-      }
-
-      lastFitKeyRef.current = fitKey;
-
-      // Let Leaflet finish drawing layers before fitting.
-      window.setTimeout(function () {
-        try {
-          mapInstance.invalidateSize();
-          fitToGeo(mapInstance, geoToFit, isSidebarOpen);
-        } catch (e) {
-          // ignore
-        }
-      }, 0);
-    },
-    [
-      mapInstance,
-      year,
-      typeFilter,
-      partyContestedFilter,
-      partyWinnerFilter,
-      search,
-      isSidebarOpen,
-      filteredGeo,
-      activeGeo,
-    ],
-  );
-  function getGeoJsonBounds(geojson) {
-    try {
-      const layer = L.geoJSON(geojson);
-      const bounds = layer.getBounds();
-      if (bounds && bounds.isValid && bounds.isValid()) {
-        return bounds;
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  useEffect(
-    function () {
-      if (!mapInstance) return;
-
-      // Use filtered boundaries if any; otherwise fall back to full year boundaries
-      const geoToFit =
-        filteredGeo &&
-        Array.isArray(filteredGeo.features) &&
-        filteredGeo.features.length > 0
-          ? filteredGeo
-          : activeGeo;
-
-      const bounds = geoToFit ? getGeoJsonBounds(geoToFit) : null;
-
-      // Sidebar padding: keep features visually centred in the remaining map viewport
-      const sidebarWidth =
-        isSidebarOpen && sidebarRef.current
-          ? sidebarRef.current.getBoundingClientRect().width
-          : 0;
-
-      const pad = 24;
-      const paddingTopLeft = [sidebarWidth + pad, pad];
-      const paddingBottomRight = [pad, pad];
-
-      // If we have valid bounds, fit to them; else hard centre on SG
-      if (bounds) {
-        mapInstance.fitBounds(bounds, {
-          paddingTopLeft,
-          paddingBottomRight,
-          animate: false,
-        });
-      } else {
-        mapInstance.setView([1.3521, 103.8198], 11, { animate: false });
-      }
-    },
-    [
-      mapInstance,
-      isSidebarOpen,
-      // re-fit whenever filters/year/search change the displayed shapes
-      year,
-      typeFilter,
-      partyContestedFilter,
-      partyWinnerFilter,
-      search,
-      // re-fit after data arrives
-      activeGeo,
-      filteredGeo,
-    ],
-  );
 
   const matchedCount =
     filteredGeo && Array.isArray(filteredGeo.features)
@@ -879,6 +835,10 @@ export default function MapPage() {
     activeGeo && Array.isArray(activeGeo.features)
       ? activeGeo.features.length
       : 0;
+
+  const handleX = sidebarCollapsed
+    ? Math.round(HANDLE_WIDTH / 2)
+    : sidebarWidthPx || SIDEBAR_WIDTH;
   const geoJsonKey = useMemo(
     function () {
       const q = upperTrim(search);
@@ -909,126 +869,23 @@ export default function MapPage() {
 
   return (
     <div
-      className={
-        isSidebarOpen ? "map-shell sidebar-open" : "map-shell sidebar-collapsed"
-      }
-      style={{ height: `calc(100vh - ${navBarHeight}px)` }}
+      style={{
+        position: "relative",
+        height: `calc(100vh - ${navBarHeight}px)`,
+        width: "100%",
+        overflow: "hidden",
+      }}
     >
-      <button
-        type="button"
-        className="sidebar-edge-toggle"
-        onClick={handleToggleSidebar}
-        aria-label={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-        title={isSidebarOpen ? "Collapse" : "Expand"}
+      {/* Map layer (full size) */}
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+        }}
       >
-        {isSidebarOpen ? "‹" : "›"}
-      </button>
-
-      <aside
-        ref={sidebarRef}
-        className={isSidebarOpen ? "map-sidebar open" : "map-sidebar collapsed"}
-      >
-        <div className="map-sidebar-top">
-          <div className="map-sidebar-top-row">
-            <div className="map-sidebar-title">Filters</div>
-
-            <button
-              type="button"
-              className="filters-reset-btn"
-              onClick={resetFilters}
-              title="Reset filters"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="map-sidebar-body">
-          <div className="field">
-            <div className="label">Year</div>
-            <TypeaheadSelectBox
-              value={String(year)}
-              options={yearOptions}
-              placeholder={String(year)}
-              direction="down"
-              onSelect={function (picked) {
-                // allow typing exact year, but keep it safe
-                const n = Number(picked);
-                if (Number.isFinite(n)) {
-                  setYear(n);
-                }
-              }}
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Constituency type</div>
-            <TypeaheadSelectBox
-              value={typeFilter}
-              options={typeOptions}
-              placeholder="ALL"
-              direction="down"
-              onSelect={function (picked) {
-                setTypeFilter(String(picked));
-              }}
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Contested Party</div>
-            <TypeaheadSelectBox
-              value={partyContestedFilter}
-              options={partySelectOptions}
-              placeholder="ALL"
-              direction="up"
-              onSelect={function (picked) {
-                setPartyContestedFilter(String(picked));
-              }}
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Winner Party</div>
-            <TypeaheadSelectBox
-              value={partyWinnerFilter}
-              options={partySelectOptions}
-              placeholder="ALL"
-              direction="up"
-              onSelect={function (picked) {
-                setPartyWinnerFilter(String(picked));
-              }}
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Constituency</div>
-            <TypeaheadSelectBox
-              value={search}
-              options={constituencyOptions}
-              placeholder="ALL"
-              direction="up"
-              onSelect={function (pickedKey) {
-                setSearch(String(pickedKey));
-              }}
-            />
-          </div>
-
-          <div className="map-sidebar-status" style={{ marginTop: 12 }}>
-            {loading ? <div>Loading data…</div> : null}
-            {errorText ? (
-              <div style={{ color: "crimson" }}>{errorText}</div>
-            ) : null}
-
-            {!loading && !errorText ? (
-              <div>
-                Matched areas: <b>{matchedCount}</b> / <b>{totalCount}</b>.
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </aside>
-
-      <main className="map-pane">
         <MapContainer
           center={[1.32, 103.8198]}
           zoom={10.5}
@@ -1051,9 +908,10 @@ export default function MapPage() {
             />
           ) : null}
         </MapContainer>
+
+        {/* Legend */}
         <div className="map-legend" aria-label="Party legend">
           <div className="map-legend-title">Party colours</div>
-
           <div className="map-legend-grid">
             {legendParties.map(function (p) {
               return (
@@ -1068,7 +926,187 @@ export default function MapPage() {
             })}
           </div>
         </div>
-      </main>
+      </div>
+
+      {/* Sidebar overlay layer */}
+      <div
+        ref={sidebarShellRef}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: SIDEBAR_WIDTH,
+          zIndex: 9000,
+          transform: sidebarCollapsed
+            ? `translateX(-${SIDEBAR_WIDTH}px)`
+            : "translateX(0px)",
+          transition: `transform ${TRANSITION_MS}ms ease`,
+        }}
+      >
+        <aside
+          ref={sidebarRef}
+          style={{
+            height: "100%",
+            width: "100%",
+            background: "#0B1220",
+            color: "rgba(255,255,255,0.92)",
+            borderRight: "1px solid rgba(255,255,255,0.12)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+          }}
+          className="h-full overflow-hidden rounded-r-2xl"
+        >
+          {sidebarCollapsed ? null : (
+            <div className="h-full">
+              {/* your existing sidebar content EXACTLY as-is */}
+              <div className="map-sidebar-top">
+                <div className="map-sidebar-top-row">
+                  <div className="map-sidebar-title">Filters</div>
+                  <button
+                    type="button"
+                    className="filters-reset-btn"
+                    onClick={resetFilters}
+                    title="Reset filters"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+
+              <div className="map-sidebar-body">
+                <div className="field">
+                  <div className="label">Year</div>
+                  <TypeaheadSelectBox
+                    value={String(year)}
+                    options={yearOptions}
+                    placeholder={String(year)}
+                    direction="down"
+                    onSelect={function (picked) {
+                      const n = Number(picked);
+                      if (Number.isFinite(n)) {
+                        setYear(n);
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className="field">
+                  <div className="label">Constituency type</div>
+                  <TypeaheadSelectBox
+                    value={typeFilter}
+                    options={typeOptions}
+                    placeholder="ALL"
+                    direction="down"
+                    onSelect={function (picked) {
+                      setTypeFilter(String(picked));
+                    }}
+                  />
+                </div>
+
+                <div className="field">
+                  <div className="label">Contested Party</div>
+                  <TypeaheadSelectBox
+                    value={partyContestedFilter}
+                    options={partySelectOptions}
+                    placeholder="ALL"
+                    direction="up"
+                    onSelect={function (picked) {
+                      setPartyContestedFilter(String(picked));
+                    }}
+                  />
+                </div>
+
+                <div className="field">
+                  <div className="label">Winner Party</div>
+                  <TypeaheadSelectBox
+                    value={partyWinnerFilter}
+                    options={partySelectOptions}
+                    placeholder="ALL"
+                    direction="up"
+                    onSelect={function (picked) {
+                      setPartyWinnerFilter(String(picked));
+                    }}
+                  />
+                </div>
+
+                <div className="field">
+                  <div className="label">Constituency</div>
+                  <TypeaheadSelectBox
+                    value={search}
+                    options={constituencyOptions}
+                    placeholder="ALL"
+                    direction="up"
+                    onSelect={function (pickedKey) {
+                      setSearch(String(pickedKey));
+                    }}
+                  />
+                </div>
+
+                <div className="map-sidebar-status" style={{ marginTop: 12 }}>
+                  {loading ? <div>Loading data…</div> : null}
+                  {errorText ? (
+                    <div style={{ color: "crimson" }}>{errorText}</div>
+                  ) : null}
+
+                  {!loading && !errorText ? (
+                    <div>
+                      Matched areas: <b>{matchedCount}</b> / <b>{totalCount}</b>
+                      .
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          )}
+        </aside>
+      </div>
+
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: 0,
+          transform: `translateX(${handleX}px) translateY(-50%)`,
+          transition: `transform ${TRANSITION_MS}ms ease`,
+          zIndex: 9500,
+          pointerEvents: "none",
+        }}
+      >
+        <button
+          type="button"
+          onClick={function () {
+            setSidebarCollapsed(function (prev) {
+              return !prev;
+            });
+          }}
+          aria-label={sidebarCollapsed ? "Open panel" : "Collapse panel"}
+          title={sidebarCollapsed ? "Open panel" : "Collapse panel"}
+          style={{
+            pointerEvents: "auto",
+            height: 56,
+            width: HANDLE_WIDTH,
+            borderRadius: 999,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(0,0,0,0.55)",
+            boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
+            cursor: "pointer",
+            transform: "translateX(-50%)",
+          }}
+        >
+          <span
+            style={{
+              display: "block",
+              fontSize: 18,
+              fontWeight: 700,
+              lineHeight: "56px",
+              color: "rgba(255,255,255,0.75)",
+              textAlign: "center",
+            }}
+          >
+            {sidebarCollapsed ? "›" : "‹"}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
