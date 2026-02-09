@@ -1,4 +1,4 @@
-from dash import Dash, html, dcc, dash_table
+from dash import Dash, html, dcc, dash_table, callback_context, no_update
 from dash.dependencies import Input, Output, State
 from flask import request
 import os
@@ -839,9 +839,9 @@ def style_selected_row(active_row):
         # Disable the default active/selected cell highlight (pink)
         {
             "if": {"state": "active"},
-            "backgroundColor": base_bg,
-            "border": base_border,
-            "color": base_color,
+            "backgroundColor": selected_bg,
+            "border": selected_border,
+            "color": "rgba(255,255,255,0.98)",
         },
         {
             "if": {"state": "selected"},
@@ -883,14 +883,13 @@ def style_selected_row(active_row):
         styles.append(
             {
                 "if": {"state": "active", "row_index": active_row},
-                "backgroundColor": base_bg,
-                "border": base_border,
-                "color": base_color,
+                "backgroundColor": selected_bg,
+                "border": selected_border,
+                "color": "rgba(255,255,255,0.98)",
             }
         )
 
     return styles
-
 @app.callback(
     Output("store-expanded", "data"),
     Output("store-active-row", "data"),
@@ -909,9 +908,11 @@ def manage_expansion(active_cell, close_clicks, boot_intervals, reset_clicks, ta
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
+    # Boot always starts closed
     if trigger_id == "boot":
         return None, None
 
+    # Close only via buttons
     if trigger_id == "btn-reset-filters":
         if not reset_clicks:
             raise PreventUpdate
@@ -922,6 +923,7 @@ def manage_expansion(active_cell, close_clicks, boot_intervals, reset_clicks, ta
             raise PreventUpdate
         return None, None
 
+    # Open only via table clicks
     if trigger_id == "tbl":
         if not active_cell:
             raise PreventUpdate
@@ -937,9 +939,11 @@ def manage_expansion(active_cell, close_clicks, boot_intervals, reset_clicks, ta
         clicked = table_data[row_index]
         clicked_key = f"{clicked.get('year')}|{clicked.get('constituency')}"
 
+        # If user clicks the same row again: do nothing (no close)
         if expanded_state and expanded_state.get("key") == clicked_key:
-            return None, None
+            return no_update, no_update
 
+        # Otherwise open details for the newly clicked row
         return (
             {"key": clicked_key, "year": clicked.get("year"), "constituency": clicked.get("constituency")},
             int(row_index),
@@ -1059,14 +1063,14 @@ def init_filters(options_data, _reset_clicks):
 @app.callback(
     Output("tbl", "active_cell"),
     Output("tbl", "selected_cells"),
-    Input("store-expanded", "data"),
-    Input("store-active-row", "data"),
     Input("btn-close-details", "n_clicks"),
     Input("btn-reset-filters", "n_clicks"),
     Input("boot", "n_intervals"),
+    prevent_initial_call=False,
 )
-def clear_table_focus(_expanded, _active_row, _close, _reset, _boot):
+def clear_table_focus(_close, _reset, _boot):
     return None, []
+
 
 
 @app.callback(
