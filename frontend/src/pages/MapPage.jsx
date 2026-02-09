@@ -66,6 +66,45 @@ function getBoundaryTypeFromName(properties) {
   if (name.endsWith(" GRC")) return "GRC";
   return "";
 }
+function clamp01(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+
+// Map winner% (0–100) to fillOpacity.
+// We clamp to [0.15..0.92] so 51% isn't too faint and 100% isn't a solid blob.
+function opacityFromWinnerPct(winnerPct) {
+  const t = clamp01(Number(winnerPct) / 100);
+
+  const minO = 0.15;
+  const maxO = 0.92;
+
+  // optional: slightly boost the high end so 70–100 feels more distinct
+  // (still linear-ish but nicer visually)
+  const eased = Math.pow(t, 0.85);
+
+  return minO + (maxO - minO) * eased;
+}
+
+function getWinnerPct(entry) {
+  if (!entry) return null;
+
+  // If backend provides a direct winner vote pct, use it
+  if (Number.isFinite(Number(entry.winnerVotePct))) {
+    return Number(entry.winnerVotePct);
+  }
+
+  const winner = upperTrim(entry.winnerParty);
+  if (!winner) return null;
+
+  // Typical structure in your tooltip code:
+  // entry.parties = { PAP: { votePct: 61.23, ... }, WP: { votePct: 38.77, ... } }
+  const node = entry.parties && entry.parties[winner];
+  const pct = node ? Number(node.votePct) : null;
+
+  return Number.isFinite(pct) ? pct : null;
+}
 
 // Party colours (extend as you like)
 const PARTY_META = {
@@ -455,7 +494,7 @@ export default function MapPage() {
   const sidebarShellRef = useRef(null);
   // real measured width (so centring is accurate)
   const [sidebarWidthPx, setSidebarWidthPx] = useState(0);
-  const HANDLE_WIDTH = 28;
+  const HANDLE_WIDTH = 24;
   const leftInsetPx = sidebarCollapsed
     ? HANDLE_WIDTH
     : sidebarWidthPx || SIDEBAR_WIDTH;
@@ -866,83 +905,98 @@ export default function MapPage() {
   }, [mapInstance, refitMapNow]);
 
   // Styles: by default, winner party colour;
-  const geoStyle = useMemo(
-    function () {
-      return function (feature) {
-        const props = feature && feature.properties ? feature.properties : {};
-        const nameKey = upperTrim(getBoundaryName(props));
+ const geoStyle = useMemo(
+  function () {
+    return function (feature) {
+      const props = feature && feature.properties ? feature.properties : {};
+      const displayName = getBoundaryName(props);
 
-        const entry = activeSummary.get(nameKey) || null;
-        const winner =
-          entry && entry.winnerParty ? String(entry.winnerParty) : "";
+      // MUST match how you keyed activeSummary
+      const nameKey = normaliseConstituencyKey(displayName);
 
-        const baseFill = winner ? colourForParty(winner) : "#ffffff";
-        const baseStroke = winner ? colourForParty(winner) : "#ffffff";
+      const entry = activeSummary.get(nameKey) || null;
+      const winner = entry && entry.winnerParty ? String(entry.winnerParty) : "";
 
-        return {
-          color: baseStroke, // border
-          weight: 2,
-          opacity: 1,
-          fillColor: baseFill,
-          fillOpacity: 0.35,
-        };
+      const baseFill = winner ? colourForParty(winner) : "#ffffff";
+      const baseStroke = winner ? colourForParty(winner) : "#ffffff";
+
+      const winnerPct = getWinnerPct(entry); // 0–100
+      const fillOpacity = Number.isFinite(Number(winnerPct))
+        ? opacityFromWinnerPct(winnerPct)
+        : 0.25;
+
+      return {
+        color: baseStroke,
+        weight: 2,
+        opacity: 1,
+        fillColor: baseFill,
+        fillOpacity: fillOpacity,
       };
-    },
-    [activeSummary],
-  );
+    };
+  },
+  [activeSummary],
+);
 
-  function onEachFeature(feature, layer) {
-    const props = feature && feature.properties ? feature.properties : {};
-    const displayName = getBoundaryName(props);
-    const nameKey = upperTrim(displayName);
-    const inferredType = getBoundaryTypeFromName(props);
 
-    const entry = activeSummary.get(nameKey) || null;
+ function onEachFeature(feature, layer) {
+  const props = feature && feature.properties ? feature.properties : {};
+  const displayName = getBoundaryName(props);
 
-    const winner =
-      entry && entry.winnerParty ? String(entry.winnerParty) : "Unknown";
+  const nameKey = normaliseConstituencyKey(displayName);
+  const inferredType = getBoundaryTypeFromName(props);
 
-    // Build party lines like:
-    // 80% PAP
-    // 20% WP
-    let partyLinesHtml = "";
+  const entry = activeSummary.get(nameKey) || null;
 
-    if (entry && entry.parties) {
-      const parties = Object.keys(entry.parties);
+  const winner =
+    entry && entry.winnerParty ? String(entry.winnerParty) : "Unknown";
 
-      parties.sort(function (a, b) {
-        const av = Number(entry.parties[a]?.votePct ?? -1);
-        const bv = Number(entry.parties[b]?.votePct ?? -1);
-        return bv - av;
-      });
+  // Build tooltip HTML (keep your existing code)
+  let partyLinesHtml = "";
 
-      partyLinesHtml = parties
-        .map(function (p) {
-          const pctVal = Number(entry.parties[p]?.votePct);
-          const pctText = Number.isFinite(pctVal)
-            ? `${pctVal.toFixed(2)}%`
-            : "";
-          return `<div style="font-size:12px; margin-top:2px;"><b>${pctText}</b> ${p}</div>`;
-        })
-        .join("");
-    }
+  if (entry && entry.parties) {
+    const parties = Object.keys(entry.parties);
 
-    const html = `<div style="font-weight:800; margin-bottom:6px;">${displayName}</div>
-      <div style="font-size:12px;">Year: <b>${year}</b></div>
-      <div style="font-size:12px;">Type: <b>${inferredType || "Unknown"}</b></div>
-      <div style="font-size:12px; margin-top:6px;">Winner: <b>${winner}</b></div>
-      <div style="margin-top:6px;">${partyLinesHtml}</div>`;
-
-    layer.bindTooltip(html, { sticky: true, direction: "auto" });
-
-    layer.on("mouseover", function () {
-      layer.setStyle({ weight: 4, fillOpacity: 0.85 });
+    parties.sort(function (a, b) {
+      const av = Number(entry.parties[a]?.votePct ?? -1);
+      const bv = Number(entry.parties[b]?.votePct ?? -1);
+      return bv - av;
     });
 
-    layer.on("mouseout", function () {
-      layer.setStyle({ weight: 2, fillOpacity: 0.35 });
-    });
+    partyLinesHtml = parties
+      .map(function (p) {
+        const pctVal = Number(entry.parties[p]?.votePct);
+        const pctText = Number.isFinite(pctVal)
+          ? `${pctVal.toFixed(2)}%`
+          : "";
+        return `<div style="font-size:12px; margin-top:2px;"><b>${pctText}</b> ${p}</div>`;
+      })
+      .join("");
   }
+
+  const html = `<div style="font-weight:800; margin-bottom:6px;">${displayName}</div>
+    <div style="font-size:12px;">Year: <b>${year}</b></div>
+    <div style="font-size:12px;">Type: <b>${inferredType || "Unknown"}</b></div>
+    <div style="font-size:12px; margin-top:6px;">Winner: <b>${winner}</b></div>
+    <div style="margin-top:6px;">${partyLinesHtml}</div>`;
+
+  layer.bindTooltip(html, { sticky: true, direction: "auto" });
+
+  // Capture initial style so we can restore it perfectly
+  const base = geoStyle(feature);
+
+  layer.on("mouseover", function () {
+    layer.setStyle({
+      ...base,
+      weight: 4,        // thicker border
+      opacity: 1,       // keep border opacity
+      // DO NOT touch fillOpacity here
+    });
+  });
+
+  layer.on("mouseout", function () {
+    layer.setStyle(base);
+  });
+}
 
   const matchedCount =
     filteredGeo && Array.isArray(filteredGeo.features)
@@ -982,7 +1036,7 @@ export default function MapPage() {
       matchedCount,
     ],
   );
-  const navBarHeight = 70;
+  const navBarHeight = 61;
 
   return (
     <div
@@ -990,7 +1044,7 @@ export default function MapPage() {
         position: "relative",
         height: `calc(100vh - ${navBarHeight}px)`,
         width: "100%",
-        overflow: "hidden",
+        // overflow: "hidden",
       }}
     >
       {/* Map layer (full size) */}
@@ -1076,12 +1130,12 @@ export default function MapPage() {
           style={{
             height: "100%",
             width: "100%",
-            background: "#0B1220",
+            background: "#2b2f38",
             color: "rgba(255,255,255,0.92)",
             borderRight: "1px solid rgba(255,255,255,0.12)",
             boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
           }}
-          className="h-full overflow-hidden rounded-r-2xl"
+          className="h-full rounded-r-2xl"
         >
           {sidebarCollapsed ? null : (
             <div className="h-full">
@@ -1214,7 +1268,7 @@ export default function MapPage() {
             width: HANDLE_WIDTH,
             borderRadius: 999,
             border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(0,0,0,0.55)",
+            background: "#2b2f38",
             boxShadow: "0 8px 20px rgba(0,0,0,0.35)",
             cursor: "pointer",
             transform: "translateX(-50%)",

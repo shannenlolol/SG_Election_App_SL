@@ -1,5 +1,5 @@
 :root {
-  --c-base: #0B1220;
+  --c-base: linear-gradient(180deg, rgba(255, 255, 255, 0.205), rgba(255, 255, 255, 0.119));;
   --c-cyan: #21D4FD;
   --c-violet: #A78BFA;
 
@@ -118,4 +118,130 @@ input::placeholder {
 .map-legend-text {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.profile-menu-root {
+  position: relative;
+  display: inline-block;
+}
+
+.profile-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  height: 36px;
+  width: 36px;
+
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+}
+
+.profile-trigger:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.profile-trigger:focus-visible {
+  outline: 2px solid rgba(33, 212, 253, 0.65);
+  outline-offset: 2px;
+}
+
+.profile-icon {
+  display: inline-flex;
+}
+
+.profile-dropdown {
+  /* z-index: 1000; */
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+
+  min-width: 160px;
+
+  background: rgba(11, 18, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  /* overflow: hidden; */
+
+  z-index: 99999;
+}
+
+.profile-dropdown-header {
+  padding: 12px 14px;
+}
+
+.profile-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.15;
+}
+
+.profile-role {
+  margin-top: 4px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.profile-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.profile-logout {
+  width: 100%;
+  text-align: left;
+
+  padding: 11px 14px;
+
+  background: transparent;
+  border: none;
+
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+
+  cursor: pointer;
+}
+
+.profile-logout:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.profile-logout:focus-visible {
+  outline: 2px solid rgba(33, 212, 253, 0.65);
+  outline-offset: -2px;
+}
+/* Make sure z-index actually works */
+.topbar {
+  position: sticky; /* or fixed */
+  top: 0;
+  z-index: 20000;
+  overflow: visible;
+}
+
+/* Any wrappers that might clip */
+.topbar-inner,
+.topbar-left,
+.topbar-right,
+.profile-menu-root {
+  overflow: visible;
+}
+
+/* Anchor point for the menu */
+.profile-menu-root {
+  position: relative;
+}
+
+/* The dropdown itself */
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20010;
 }
