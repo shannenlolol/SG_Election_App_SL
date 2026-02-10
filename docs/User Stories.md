@@ -1,4 +1,4 @@
-# User Stories — Singapore Election App
+# User Stories
 
 ## Summary Table
 
@@ -90,16 +90,16 @@
 
 **Acceptance Criteria**
 
-* Hovering over a constituency shall show a tooltip/popup containing:
+* Hovering over a constituency shall show a tooltip containing:
 
   * Constituency name
   * Election year
   * Constituency type (SMC/GRC)
   * Winner party
   * Vote share breakdown for contesting parties (where available)
-* Tooltips/popups shall disappear when the cursor leaves the constituency (or when closed, if click-based).
+* Tooltips shall disappear when the cursor leaves the constituency (or when closed, if click-based).
 * If vote share is unavailable (e.g., walkover), the system shall display an appropriate label instead of blank values.
-* Tooltip/popup content shall match the currently applied filters and selected year.
+* Tooltip content shall match the currently applied filters and selected year.
 
 ---
 

@@ -156,12 +156,12 @@ input::placeholder {
 .profile-dropdown {
   /* z-index: 1000; */
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 2px);
   right: 0;
 
   min-width: 160px;
 
-  background: rgba(11, 18, 32, 0.98);
+  background: rgba(59, 59, 60, 0.98);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 14px;
 

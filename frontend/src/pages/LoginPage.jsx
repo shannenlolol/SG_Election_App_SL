@@ -38,6 +38,40 @@ export default function LoginPage() {
     }
   }
 
+function parseApiError(err) {
+  const raw = String(err && err.message ? err.message : err || "").trim();
+
+  let message = raw;
+  try {
+    const obj = JSON.parse(raw);
+    if (obj && typeof obj === "object") {
+      if (typeof obj.message === "string") {
+        message = obj.message;
+      } else if (typeof obj.error === "string") {
+        message = obj.error;
+      }
+    }
+  } catch (_e) {
+    // keep raw
+  }
+
+  const lower = String(message || "").toLowerCase();
+
+  if (lower.includes("invalid credentials")) {
+    return "Your username or password is incorrect. Please try again.";
+  }
+
+  if (lower.includes("not authenticated") || lower.includes("unauthorized")) {
+    return "You are not signed in. Please sign in again.";
+  }
+
+  if (!message) {
+    return "Request failed. Please try again.";
+  }
+
+  return message;
+}
+
   return (
     <div className="page">
       <div className="card">
@@ -89,7 +123,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {errorText ? <div className="error">{errorText}</div> : null}
+        {errorText ? <div className="login-error">{parseApiError(errorText)}</div> : null}
       </div>
     </div>
   );

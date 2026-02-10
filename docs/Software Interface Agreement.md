@@ -1,4 +1,4 @@
-# Software Interface Agreement — data.gov.sg Dataset APIs (SG Election App)
+# Software Interface Agreement — data.gov.sg Dataset APIs
 
 This document specifies the **data.gov.sg Dataset Download API (API-Open)** consumed by the **SG Election App** backend to download and refresh election datasets into MySQL.
 
