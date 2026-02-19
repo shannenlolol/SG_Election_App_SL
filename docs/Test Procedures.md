@@ -61,7 +61,7 @@ Verify that signing out clears/invalidates the session and blocks protected page
 **Steps:**
 
 1. Sign in successfully (User Story 1).
-2. Click *Sign out**.
+2. Click *Sign out*.
 3. Confirm user is redirected to the login page.
 4. Attempt to open `/dashboard` directly via the browser URL bar.
 5. Attempt to open `/map` directly via the browser URL bar.

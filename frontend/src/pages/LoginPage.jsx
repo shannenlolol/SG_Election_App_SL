@@ -8,8 +8,12 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
 
-  const [username, setUsername] = React.useState("diana");
-  const [password, setPassword] = React.useState("Password123!");
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+
+  // const [username, setUsername] = React.useState("diana");
+  // const [password, setPassword] = React.useState("Password123!");
+  
   const [showPassword, setShowPassword] = React.useState(false);
 
   const [errorText, setErrorText] = React.useState("");

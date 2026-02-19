@@ -15,7 +15,7 @@ In this implementation, **all datasets (GeoJSON boundaries and tabular datasets)
 ### 1.1 API-Open Dataset Download (poll-download)
 
 ```text
-https://api-open.data.gov.sg/v1/public/api/datasets
+https://api-open.data.gov.sg/v1/public/api/datasets/{BOUNDARY_DATASET_ID}/poll-download
 ```
 
 ### 1.2 Signed download URL (returned by poll-download)
