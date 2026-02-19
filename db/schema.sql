@@ -167,3 +167,54 @@ ALTER TABLE ge_top_parties
 
 ALTER TABLE ge_summary
   DROP FOREIGN KEY fk_summary_winner;
+
+
+USE election_db;
+SET NAMES utf8mb4;
+
+-- -----------------------------------------
+-- Store GeoJSON boundaries by year
+-- This table is populated ONLY by sync script.
+-- Runtime reads from this table only.
+-- -----------------------------------------
+CREATE TABLE IF NOT EXISTS ge_boundaries (
+  year INT NOT NULL,
+  source_dataset_id VARCHAR(64) NULL,
+
+  -- full GeoJSON FeatureCollection for that year
+  geojson JSON NOT NULL,
+
+  -- optional: when it was last synced
+  last_synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (year),
+  KEY idx_boundaries_dataset (source_dataset_id),
+  KEY idx_boundaries_synced (last_synced_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+
+-- -----------------------------------------
+-- Optional: pre-extracted features for fast lookups
+-- (useful if your FeatureCollection is huge)
+-- Populate in sync script too.
+-- -----------------------------------------
+CREATE TABLE IF NOT EXISTS ge_boundary_features (
+  year INT NOT NULL,
+  constituency VARCHAR(255) NOT NULL,
+  constituency_type VARCHAR(8) NULL,  -- 'GRC' / 'SMC' if you can infer
+  properties JSON NULL,
+  geometry JSON NOT NULL,
+
+  -- optional: small bbox for quick map fits
+  min_lng DOUBLE NULL,
+  min_lat DOUBLE NULL,
+  max_lng DOUBLE NULL,
+  max_lat DOUBLE NULL,
+
+  last_synced_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (year, constituency),
+  KEY idx_bf_year (year),
+  KEY idx_bf_const (constituency),
+  KEY idx_bf_type (constituency_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
