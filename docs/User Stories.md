@@ -238,7 +238,6 @@
   * Candidate lists grouped by party
 * The side panel shall display the constituency name and year clearly.
 * The side panel shall provide a close action that returns the user to the table view.
-* If some datasets are missing (e.g., candidates not available), the panel shall show an informative fallback rather than failing.
 
 ---
 

@@ -297,3 +297,381 @@ DPP,Democratic Progressive Party
 ...
 ```
 
+
+## 6. SG Election App Backend APIs (Express + MySQL)
+
+This section specifies the **backend HTTP APIs** exposed by the SG Election App server. These APIs are consumed by:
+
+* The **React frontend** (for login, dashboard, boundaries, etc.).
+* The **embedded Dash app** (served through a reverse proxy under `/dash/`).
+
+Unless stated otherwise, endpoints are **protected** by `requireAuth` and require a valid **JWT cookie** (`token`) set by the login endpoint.
+
+---
+
+### 6.1 Base URL
+
+In local development, the backend  runs on:
+
+```text
+http://localhost:4000
+```
+
+All API routes below are relative to the backend base URL.
+
+---
+
+### 6.2 Endpoint Summary
+
+### 6.2.1 Auth endpoints
+
+| Method | Path               |  Description                        |
+| ------ | ------------------ | ---------------------------------- |
+| POST   | `/api/auth/login`  |Login; sets `token` cookie         |
+| POST   | `/api/auth/logout` | Logout; clears `token` cookie      |
+endpoint: auth + cookie keys |
+
+---
+
+### 6.2.2 Dashboard endpoints
+
+Dashboard routes are mounted under:
+
+```text
+/api/dashboard
+```
+
+| Method | Path                            | Description                                                    |
+| ------ | ------------------------------- | -------------------------------------------------------------- |
+| GET    | `/api/dashboard/options`        | Loads dashboard filter options and summary tab            |
+| GET    | `/api/dashboard/search`         | Searches dashboard rows                   |
+| GET    | `/api/dashboard/details`        | Loads details for a selected row          |
+---
+
+### 6.2.3 Boundaries endpoints
+
+Boundaries routes are mounted under:
+
+```text
+/api/boundaries
+```
+
+| Method | Path                                |  Description                                          |
+| ------ | ----------------------------------- |---------------------------------------------------- |
+| GET    | `/api/boundaries?year=YYYY`         | Returns boundary GeoJSON for the year                  |
+| GET    | `/api/boundaries/summary?year=YYYY` | Returns summary statistics for boundaries for the year |
+
+---
+
+## 6.3 Detailed API Specifications
+
+## 6.3.1 POST `/api/auth/login`
+
+**Description**
+
+Authenticates a user and sets the `token` cookie.
+
+**Request body (JSON)**
+
+| Field      | Type   | Required | Description |
+| ---------- | ------ | -------- | ----------- |
+| `username` | string | Yes      | Username    |
+| `password` | string | Yes      | Password    |
+
+**Responses**
+
+* `200 OK`: sets cookie `token`, returns user profile fields
+* `400 Bad Request`: missing username/password
+* `401 Unauthorized`: invalid credentials
+* `500 Internal Server Error`: unexpected server error
+
+**200 response body**
+
+```json
+{
+  "username": "diana",
+  "role_name": "civilian",
+  "area": "PIONEER"
+}
+```
+
+---
+
+## 6.3.2 POST `/api/auth/logout`
+
+**Description**
+
+Logs the user out and clears the `token` cookie.
+
+**Request body**
+None.
+
+**Example request**
+
+```http
+POST /api/auth/logout
+Accept: application/json
+Cookie: token=<jwt>
+```
+
+**200 response body**
+
+```json
+{
+  "message": "Logged out."
+}
+```
+---
+
+## 6.3.3 GET `/api/dashboard/options`
+
+**Description**
+
+Populates dropdown options as well as summary tab figures and tables.
+
+**Query parameters**
+
+None.
+
+**200 response body**
+
+```json
+{
+  "years": [1955, 1959, 1963, 1968, 1972, 2020, 2025],
+  "parties": [
+    { "abbreviation": "PAP", "full_name": "People's Action Party" },
+    { "abbreviation": "WP", "full_name": "Workers' Party" }
+    ...
+  ],
+  "constituencies": [
+    { "constituency": "MARINE PARADE-BRADDELL HEIGHTS" },
+    { "constituency": "TANJONG PAGAR" }
+    ...
+  ],
+  "election_dates": [
+    { "year": 1955, "nomination_day": "1955-02-28", "polling_day": "1955-04-02" },
+    { "year": 2025, "nomination_day": "2025-04-28", "polling_day": "2025-05-04" }
+    ...
+  ]
+}
+```
+---
+
+## 6.3.4 GET `/api/dashboard/search`
+
+**Description**
+
+Returns **dashboard rows** from the backend based on optional filters. This endpoint is called whenever filters change, and the returned rows are displayed in the DataTable.
+
+**Query parameters**
+
+All are optional. When omitted/empty, the backend returns unfiltered results.
+
+| Parameter        | Type   | Required | Description                                                                                                |
+| ---------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------- |
+| `years`          | string | No       | CSV list of years (e.g., `2020,2025`)                                                                      |
+| `winners`        | string | No       | CSV list of winner party abbreviations                                                                     |
+| `types`          | string | No       | CSV list of constituency types (`GRC,SMC`)                                                                 |
+| `constituencies` | string | No       | CSV list of constituency names                                                                             |
+| `contesting`     | string | No       | CSV list of contesting parties |
+
+**Example request**
+
+```http
+GET /api/dashboard/search?years=2020,2025&winners=PAP,WP&types=GRC&constituencies=MARINE%20PARADE-BRADDELL%20HEIGHTS
+Accept: application/json
+Cookie: token=<jwt>
+```
+
+**200 response body**
+
+```json
+{
+  "rows": [
+    {
+      "year": 2025,
+      "constituency": "MARINE PARADE-BRADDELL HEIGHTS",
+      "constituency_type": "GRC",
+      "winner_party": "PAP",
+      "margin_pct": 1.0,
+      "turnout_pct": 0.945,
+
+      "contesting_parties_csv": "PAP,WP,PSP"
+    }
+  ]
+}
+```
+---
+
+## 6.3.5 GET `/api/dashboard/details`
+
+**Description**
+
+Returns **details** for a selected `(year, constituency)` row which populates the right-side details panel:
+
+* votes-by-party bar chart
+* elector pie chart (registered/rejected/spoilt)
+* candidates table
+
+**Query parameters**
+
+| Parameter      | Type   | Required | Description       |
+| -------------- | ------ | -------- | ----------------- |
+| `year`         | number | Yes      | Election year     |
+| `constituency` | string | Yes      | Constituency name |
+
+**Example request**
+
+```http
+GET /api/dashboard/details?year=2025&constituency=MARINE%20PARADE-BRADDELL%20HEIGHTS
+Accept: application/json
+Cookie: token=<jwt>
+```
+
+**200 response body**
+
+```json
+{
+  "parties": [
+    {
+      "party": "PAP",
+      "party_full_name": "People's Action Party",
+      "vote_count": 12345,
+      "vote_share": 0.6123,
+      "candidates": "A;B;C;D"
+    },
+    {
+      "party": "WP",
+      "party_full_name": "Workers' Party",
+      "vote_count": 7821,
+      "vote_share": 0.3877,
+      "candidates": "E;F;G;H"
+    }
+  ],
+  "elector": {
+    "no_of_registered_electors": 50000,
+    "no_of_rejected_votes": 120,
+    "no_of_spoilt_ballot_papers": 80
+  }
+}
+```
+---
+
+## 6.3.6 GET `/api/boundaries?year=YYYY`
+
+**Description**
+
+Returns boundary GeoJSON for the year.
+
+**Query parameters**
+
+| Parameter | Type   | Required | Description                                        |
+| --------- | ------ | -------- | -------------------------------------------------- |
+| `year`    | number | Yes      | Boundary year (e.g., 2006, 2011, 2015, 2020, 2025) |
+
+---
+
+**Example request**
+
+```http
+GET /api/boundaries?year=2025
+Accept: application/json
+Cookie: token=<jwt>
+```
+
+---
+
+**200 response body (GeoJSON, truncated example)**
+
+```json
+{
+  "type": "FeatureCollection",
+  "name": "dgs_ge2025",
+  "crs": {
+    "type": "name",
+    "properties": {
+      "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+    }
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "FID": 0,
+        "ED_DESC": "JURONG EAST-BUKIT BATOK",
+        "ED_DESC_FU": "JURONG EAST-BUKIT BATOK GRC",
+        "Name": "JURONG EAST-BUKIT BATOK",
+        "NEW_ED": "JE"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [103.75275987119699, 1.349528977195389],
+            [103.75256849651998, 1.349633365108964],
+            [103.7523219230196, 1.349598112092441]
+            ...
+          ]
+        ]
+      }
+      ...
+    }
+  ]
+}
+```
+
+---
+
+## 6.3.7 GET `/api/boundaries/summary?year=YYYY`
+
+**Description**
+Returns a **per-constituency election summary** for a given year, keyed by **boundary-style constituency key**, including:
+
+* `winnerParty`
+* `constituencyType`
+* `parties`
+
+This is used for the tooltip details when hovering a boundary.
+
+**Query parameters**
+
+| Parameter | Type   | Required | Description                                                     |
+| --------- | ------ | -------- | --------------------------------------------------------------- |
+| `year`    | number | Yes      | Election year to summarise (e.g., 2006, 2011, 2015, 2020, 2025) |
+
+**Example request**
+
+```http
+GET /api/boundaries/summary?year=2025
+Accept: application/json
+Cookie: token=<jwt>
+```
+
+**200 response body (example)**
+
+```json
+{
+  "year": 2025,
+  "parties": ["PAP", "PSP", "WP"],
+  "summary": {
+    "JURONG EAST-BUKIT BATOK GRC": {
+      "winnerParty": "PAP",
+      "constituencyType": "GRC",
+      "parties": {
+        "PAP": { "votePct": 62.13 },
+        "WP": { "votePct": 37.87 }
+      }
+    },
+    "BUKIT PANJANG SMC": {
+      "winnerParty": "PAP",
+      "constituencyType": "SMC",
+      "parties": {
+        "PAP": { "votePct": 54.02 },
+        "PSP": { "votePct": 45.98 }
+      }
+    }
+  }
+}
+```
+
+---
