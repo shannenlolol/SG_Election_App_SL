@@ -969,11 +969,9 @@ def manage_expansion(active_cell, close_clicks, boot_intervals, reset_clicks, ta
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    # Boot always starts closed
     if trigger_id == "boot":
         return None, None
 
-    # Close only via buttons
     if trigger_id == "btn-reset-filters":
         if not reset_clicks:
             raise PreventUpdate
@@ -984,34 +982,29 @@ def manage_expansion(active_cell, close_clicks, boot_intervals, reset_clicks, ta
             raise PreventUpdate
         return None, None
 
-    # Open only via table clicks
     if trigger_id == "tbl":
-        if not active_cell:
-            raise PreventUpdate
-        if not table_data:
+        if not active_cell or not table_data:
             raise PreventUpdate
 
-        row_index = active_cell.get("row")
-        if row_index is None:
-            raise PreventUpdate
-        if row_index < 0 or row_index >= len(table_data):
+        row_id = active_cell.get("row_id")
+        if not row_id:
+            raise PreventUpdate  # means your rows don't have "id" yet
+
+        clicked = next((r for r in table_data if r.get("id") == row_id), None)
+        if not clicked:
             raise PreventUpdate
 
-        clicked = table_data[row_index]
-        clicked_key = f"{clicked.get('year')}|{clicked.get('constituency')}"
+        clicked_key = clicked.get("id")
 
-        # If user clicks the same row again: do nothing (no close)
         if expanded_state and expanded_state.get("key") == clicked_key:
             return no_update, no_update
 
-        # Otherwise open details for the newly clicked row
         return (
             {"key": clicked_key, "year": clicked.get("year"), "constituency": clicked.get("constituency")},
-            int(row_index),
+            int(active_cell.get("row", 0)),  # keep for styling highlight
         )
 
     raise PreventUpdate
-
 
 @app.callback(
     Output("right-pane", "style"),
@@ -1235,8 +1228,11 @@ def update_table(years, winners, contesting, types, constituencies, options_data
 
             contested_list = get_contesting_parties_from_row(r)
 
+            row_key = f"{year}::{constituency}"  # any unique stable key
+
             table_data.append(
                 {
+                    "id": row_key,
                     "year": year,
                     "constituency": constituency,
                     "constituency_type": ctype,
